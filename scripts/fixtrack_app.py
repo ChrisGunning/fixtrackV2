@@ -13,6 +13,7 @@ ipython = get_ipython()
 if ipython is not None:
     ipython.magic("%gui qt5")
 
+#Retrieve user arguments in form: video_name --track track_name
 parser = argparse.ArgumentParser()
 parser.add_argument("video", type=str, help="Video file name")
 parser.add_argument("--track", type=str, default=None, help="Track H5 file name if one exists")
@@ -24,6 +25,7 @@ args = parser.parse_args()
 
 app = QApplication(sys.argv)
 
+#initialize GUI with user arguments
 main_win = FixtrackWindow(args.video, args.track, not args.no_range_slider)
 main_win.show()
 sys.exit(app.exec_())

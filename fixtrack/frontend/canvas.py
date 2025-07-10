@@ -9,6 +9,14 @@ from fixtrack.frontend.track import TrackCollectionVisual
 from fixtrack.frontend.visual_wrapper import VisualCollection, VisualWrapper
 
 
+'''
+Extends vispy.scene.SceneCanvas class
+
+Attributes:
+    _parent (VideoWidget): parent GUI component
+    view ():
+    visuals (dict): 
+'''
 class CanvasBase(scene.SceneCanvas):
     def __init__(self, parent, **kwargs):
         scene.SceneCanvas.__init__(self, keys="interactive", **kwargs)
@@ -18,6 +26,11 @@ class CanvasBase(scene.SceneCanvas):
         self._parent = parent
         self.freeze()
 
+    '''
+    
+    Args:
+        vis (either VisualCollection or VisualWrapper??):
+    '''
     @staticmethod
     def _picking_vis_setup(vis, restore=False):
         if restore:
@@ -27,6 +40,12 @@ class CanvasBase(scene.SceneCanvas):
             vis.picking_vis_set()
             vis.set_data_false()
 
+    '''
+    Recursive calls through vis_dict items (eventually calling _picking_vis_setup...?)
+
+    Args:
+        vis_dict (dict, list, VisualCollection, VisualWrapper): 
+    '''
     @staticmethod
     def picking_vis_setup(vis_dict, restore=False):
         for name, visual in vis_dict.items():
@@ -40,6 +59,11 @@ class CanvasBase(scene.SceneCanvas):
             elif isinstance(visual, VisualWrapper):
                 CanvasBase._picking_vis_setup(visual, restore)
 
+    '''
+
+    Args:
+        vis (VisualWrapper / VisualCollection?): The visual object to potentially hide
+    '''
     @staticmethod
     def _hide_visual(vis):
         # Don't hide visual if it is pickable
@@ -95,7 +119,21 @@ class CanvasBase(scene.SceneCanvas):
         self.picking_vis_setup(self.visuals, restore=True)
         return img
 
+'''
+Extends CanvasBase
 
+Attributes:
+    _parent (): parent GUI component
+    video (VideoReader):
+    fname_tracks (str):
+    fname_video (str):
+    frame_num (int):
+    view.camera (vispy.scene.PanZoomCamera): 
+    ts (time): 
+
+    other notes:
+        view.camera, visuals dict are inherited
+'''
 class VideoCanvas(CanvasBase):
     def __init__(self, parent, fname_video=None, fname_track=None, **kwargs):
         super().__init__(parent, **kwargs)

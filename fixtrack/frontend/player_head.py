@@ -6,6 +6,36 @@ from fixtrack.frontend.range_slider import RangeSlider
 
 
 class PlayerHeadWidget(QtWidgets.QWidget):
+    """
+    A widget for controlling video playback and frame navigation in FixTrack.
+
+    This widget includes a frame slider, playback rate selector, and optional range slider
+    for subsetting playback. It emits a signal when the current frame changes.
+
+    Attributes:
+        sig_frame_change (pyqtSignal): Emitted when the current frame changes (int index).
+
+        dt (float): Time between frames in seconds (1 / fps).
+        _playing (bool): Whether playback is currently active.
+        video_reader (VideoReader): Provides frame metadata (e.g., FPS, num_frames).
+        _ids (List[int]): List of frame IDs (0 to num_frames - 1).
+        _id_2_idx (dict): Maps frame numbers to indices.
+        _frame_num (int): The current frame number.
+        _frame_idx (int): The index of the current frame in _ids.
+        _idx_sel_a (int): Start of selected playback range.
+        _idx_sel_b (int): End of selected playback range.
+
+        play_button (QToolButton): Toggle play/pause.
+        icon_play (QIcon): Play icon.
+        icon_pause (QIcon): Pause icon.
+        frame_text (QLineEdit): Displays frame status info (current frame and range).
+        play_slider (QSlider): Slider for navigating frames.
+        range_slider (RangeSlider): Optional slider for cropping playback range.
+        rate_box (QComboBox): Dropdown to control playback speed.
+        interval (float): Timer interval in ms, based on playback speed.
+        timer (QTimer): Timer to trigger frame advancement during playback.
+    """
+
     sig_frame_change = QtCore.pyqtSignal(int)
 
     fname_play = os.path.join(os.path.dirname(__file__), "icons", "play.svg")
@@ -13,7 +43,17 @@ class PlayerHeadWidget(QtWidgets.QWidget):
     fname_skip_back = os.path.join(os.path.dirname(__file__), "icons", "skip-back.svg")
     fname_pause = os.path.join(os.path.dirname(__file__), "icons", "pause.svg")
 
+    
     def __init__(self, parent, video_reader, range_slider=True):
+        """
+        Initializes the playback and navigation controls.
+
+        Args:
+            parent (VideoWidget): Parent GUI container.
+            video_reader (VideoReader): Provides video metadata (fps, num_frames).
+            range_slider (bool): Whether to include the playback range slider.
+        """
+
         QtWidgets.QWidget.__init__(self, parent)
 
         self.dt = 1.0 / video_reader.fps
@@ -102,6 +142,7 @@ class PlayerHeadWidget(QtWidgets.QWidget):
         self.timer.timeout.connect(self.cb_timeout)
 
     def cb_last(self):
+        """Jump to the last frame and stop playback."""
         self.cb_stop()
         self.cb_play_slider(self._ids[-1])
         self.play_slider.blockSignals(True)
@@ -109,6 +150,7 @@ class PlayerHeadWidget(QtWidgets.QWidget):
         self.play_slider.blockSignals(False)
 
     def cb_first(self):
+        """Jump to the first frame and stop playback."""
         self.cb_stop()
         self.cb_play_slider(self._ids[0])
         self.play_slider.blockSignals(True)
@@ -116,6 +158,14 @@ class PlayerHeadWidget(QtWidgets.QWidget):
         self.play_slider.blockSignals(False)
 
     def cb_slider_text(self, idx, resize=False):
+        """
+        Updates the frame_text to show current frame, total frames, and range selection.
+
+        Args:
+            idx (int): Current frame index.
+            resize (bool): Whether to resize the text field to fit content.
+        """
+
         def resize_frame_text_to_fit(self):
             text = self.frame_text.text()
             font = QtGui.QFont("", 0)
@@ -130,12 +180,28 @@ class PlayerHeadWidget(QtWidgets.QWidget):
             resize_frame_text_to_fit(self)
 
     def cb_play_slider(self, frame_num=None):
+        """
+        Sets the frame based on the slider value.
+
+        Args:
+            frame_num (int, optional): Frame number to set; uses slider value if None.
+        """
+
         if frame_num is None:
             frame_num = self.play_slider.value()
         self.cb_stop()
         self.set_frame_num(frame_num)
 
     def cb_range_slider(self, idx_a, idx_b, handle):
+        """
+        Updates the playback range when the range slider is adjusted.
+
+        Args:
+            idx_a (int): Lower bound of selected range.
+            idx_b (int): Upper bound of selected range.
+            handle (int): Index of handle moved (0 = left, 1 = right).
+        """
+
         self.cb_stop()
         self._idx_sel_a = idx_a
         self._idx_sel_b = idx_b
@@ -145,12 +211,16 @@ class PlayerHeadWidget(QtWidgets.QWidget):
             self.set_frame_num(idx_b)
 
     def toggle_play(self):
+        """Toggles between play and pause states."""
+
         if self._playing:
             self.cb_stop()
         else:
             self.cb_play()
 
     def cb_play(self):
+        """Starts playback using a timer and switches icon to pause."""
+
         if self._playing:
             self.cb_stop()
         else:
@@ -159,11 +229,17 @@ class PlayerHeadWidget(QtWidgets.QWidget):
             self._playing = True
 
     def cb_stop(self):
+        """Stops playback and resets icon to play."""
+
         self.timer.stop()
         self.play_button.setIcon(self.icon_play)
         self._playing = False
 
     def cb_timeout(self):
+        """
+        Advances one frame during playback. Stops if the last frame is reached.
+        """
+
         if self.frame_idx < self.num_frames - 1:
             self.incr()
             self.play_slider.setValue(self.frame_num)
@@ -171,6 +247,11 @@ class PlayerHeadWidget(QtWidgets.QWidget):
             self.cb_stop()
 
     def cb_update_rate(self):
+        """
+        Updates the playback rate based on the rate_box selection.
+        Restarts playback if it was active.
+        """
+
         running = self.timer.isActive()
         self.timer.stop()
         self.interval = self.dt * 1000 / self.rate_box.currentData()
@@ -180,28 +261,48 @@ class PlayerHeadWidget(QtWidgets.QWidget):
 
     @property
     def num_frames(self):
+        """Returns total number of video frames."""
         return len(self._ids)
 
     @property
     def frame_num(self):
+        """Returns the current frame number."""
         return self._frame_num
 
     @property
     def frame_idx(self):
+        """Returns the current frame index."""
         return self._frame_idx
 
     def incr(self, emit=True):
+        """Advance to the next frame. Emits signal by default."""
         self.jog(1, emit)
 
     def decr(self, emit=True):
+        """Go to the previous frame. Emits signal by default."""
         self.jog(-1, emit)
 
     def jog(self, delta, emit=True):
+        """
+        Move forward/backward by a fixed number of frames.
+
+        Args:
+            delta (int): Number of frames to move (+/-).
+            emit (bool): Whether to emit the frame change signal.
+        """
+
         self._frame_idx = np.clip(self._frame_idx + delta, 0, self.num_frames - 1)
         self._frame_num = self._ids[self._frame_idx]
         self._set_frame(emit)
 
     def _set_frame(self, emit):
+        """
+        Internal method to update frame slider and emit change.
+
+        Args:
+            emit (bool): Whether to emit sig_frame_change.
+        """
+
         self.cb_slider_text(self._frame_num)
         self.play_slider.blockSignals(True)
         self.play_slider.setValue(self.frame_num)
@@ -210,6 +311,14 @@ class PlayerHeadWidget(QtWidgets.QWidget):
             self.sig_frame_change.emit(self._frame_idx)
 
     def set_frame_idx(self, n, emit=True):
+        """
+        Sets frame using an index (0-based).
+
+        Args:
+            n (int): Frame index.
+            emit (bool): Whether to emit sig_frame_change.
+        """
+
         assert n >= 0 and n < self.num_frames
         if n == self._frame_idx:
             return
@@ -219,6 +328,14 @@ class PlayerHeadWidget(QtWidgets.QWidget):
         self._set_frame(emit)
 
     def set_frame_num(self, n, emit=True):
+        """
+        Sets frame using the frame number.
+
+        Args:
+            n (int): Frame number (in _ids).
+            emit (bool): Whether to emit sig_frame_change.
+        """
+
         assert n in self._ids
         if n == self._frame_num:
             # print("Already on frame num %d" % (n))

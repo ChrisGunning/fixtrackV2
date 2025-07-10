@@ -7,7 +7,11 @@ from fixtrack.frontend.pickable_line import PickableLine
 from fixtrack.frontend.pickable_markers import PickableMarkers
 from fixtrack.frontend.visual_wrapper import VisualCollection, VisualWrapper
 
+'''
+extends VisualCollection
 
+Attributes:
+'''
 class TrackCollectionVisual(VisualCollection):
     """
     A visual collection consisting of a line, pickable markers, and heading vectors

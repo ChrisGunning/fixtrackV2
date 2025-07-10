@@ -5,9 +5,24 @@ from PyQt5 import QtCore, QtWidgets
 
 
 class FixtrackWindow(QtWidgets.QMainWindow):
+    '''
+    GUI for the fixtrack application, extends QtWidgets.QMainWindow class.
+
+    Attributes:
+        title (str): title of the GUI
+        main_widget (VideoWidget): ...?
+    ''' 
     title = "Track Fixer"
 
     def __init__(self, fname_video, fname_track, range_slider=True):
+        '''
+        Initializes a FixtrackWindow
+
+        Args:
+            fname_video (str): video file name
+            fname_track (str): tracking data file name
+            range_slider (bool, optional): ...? 
+        '''
         QtWidgets.QMainWindow.__init__(self)
         self.setAttribute(QtCore.Qt.WA_DeleteOnClose)
         self.setWindowTitle(self.title)

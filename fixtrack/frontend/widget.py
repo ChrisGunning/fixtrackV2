@@ -7,11 +7,36 @@ from fixtrack.frontend.track_controls import TopLevelControls
 
 
 class VideoWidget(QtWidgets.QWidget):
+    """
+    Main GUI component for the FixTrack application.
+
+    This widget organizes and manages the main elements of the interface,
+    including the video canvas, track editing controls, player controls,
+    and top-level control buttons.
+
+    Attributes:
+        _parent (FixtrackWindow): Reference to the parent window.
+        top_level_ctrls (TopLevelControls): Button controls for track management (save, link, etc.).
+        canvas (VideoCanvas): Widget for rendering the video and overlays.
+        scroll_area (QtWidgets.QScrollArea): Scrollable area containing track editing controls.
+        track_edit_bar (TrackEditLayoutBar): Interface for editing tracks (adding/selecting).
+        player_controls (PlayerHeadWidget): Timeline controls and playback buttons.
+    """
     mutated = QtCore.pyqtSignal(bool)
 
     def __init__(
         self, parent, fname_video=None, fname_track=None, range_slider=True, bgcolor="white"
     ):
+        """
+        Initializes the VideoWidget and lays out all subcomponents.
+
+        Args:
+            parent (FixtrackWindow): Parent window of this widget.
+            fname_video (str, optional): Path to the video file to be displayed.
+            fname_track (str, optional): Path to the tracking file to load overlays.
+            range_slider (bool, optional): Whether to include the range slider in the player controls.
+            bgcolor (str, optional): Background color for the video canvas.
+        """
         super().__init__(parent)
         self._parent = parent
 
@@ -60,6 +85,13 @@ class VideoWidget(QtWidgets.QWidget):
         self.player_controls.sig_frame_change.emit(0)
 
     def setup_track_edit_bar(self, select_last=False):
+        """
+        Initializes the track editing bar with track selectors.
+
+        Args:
+            select_last (bool, optional): If True, selects the last track by default.
+            Otherwise, the first track is selected.
+        """
         self.track_edit_bar = TrackEditLayoutBar(self)
         for i in range(self.canvas.tracks.num_tracks):
             last = i == (self.canvas.tracks.num_tracks - 1)
@@ -71,9 +103,35 @@ class VideoWidget(QtWidgets.QWidget):
         self.scroll_area.setWidget(self.track_edit_bar)
 
     def idx_selected(self):
+        """
+        Returns the index of the currently selected track.
+
+        Returns:
+            int: Index of the selected track.
+        """
         return self.track_edit_bar.idx_selected()
 
     def keyPressEvent(self, event):
+        """
+        Handles keyboard shortcuts for quick GUI operations.
+
+        Supported keys:
+            Ctrl + Q       → Quit
+            Ctrl + S       → Save tracks
+            Ctrl + Shift + S → Save tracks with shift behavior
+            Ctrl + B       → Break track
+            Ctrl + L       → Link track
+            Ctrl + N       → Add new track
+            Ctrl + Z       → Undo
+            Ctrl + Shift + Z → Redo
+            Space          → Toggle play/pause
+            Left Arrow     → Go to previous frame
+            Right Arrow    → Go to next frame
+            C              → Toggle camera overlay
+            V              → Toggle visibility of main image layer
+            [              → Set start of frame range
+            ]              → Set end of frame range
+        """
         key = event.key()
         if key == QtCore.Qt.Key_Escape:
             self.parent().fileQuit()

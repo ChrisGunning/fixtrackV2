@@ -5,6 +5,20 @@ import fixtrack.common.utils as utils
 
 
 class VideoReader(object):
+    '''
+
+    Attributes:
+        color_mode
+        fname
+        next_frame_num (int)
+        cap (cv2.VideoCapture)
+        fps
+        num_frames (int)
+        height (int)
+        width (int)
+        img_shape (tuple)
+        mean_frame
+    '''
     def __init__(self, fname, color_mode='RGB'):
         self.color_mode = color_mode.upper()
         assert self.color_mode in ['RGB', 'BGR', 'GRAY']

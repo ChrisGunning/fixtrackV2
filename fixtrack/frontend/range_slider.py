@@ -3,6 +3,14 @@ from PyQt5.QtWidgets import QStyle
 
 
 class RangeSlider(QtWidgets.QWidget):
+    '''
+    Attributes:
+        other (_, optional):
+        opt (QtWidgets.QStyleOptionSlider):
+        first_position
+        second_position
+
+    '''
     sliderMoved = QtCore.pyqtSignal(int, int, int)
 
     def __init__(self, parent=None, other=None):

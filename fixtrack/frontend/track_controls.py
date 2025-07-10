@@ -12,27 +12,92 @@ from PyQt5.QtWidgets import (
 
 
 class ShiftPushbutton(QPushButton):
+    """
+    A QPushButton subclass that emits a custom signal when clicked with the Shift key held.
+
+    This is useful for distinguishing between normal clicks and Shift-clicks,
+    allowing for dual-purpose buttons (e.g., "Save" vs. "Save As").
+
+    Signals:
+        shiftClicked (bool, bool): Emitted when clicked with Shift.
+                                   First argument: button's checked state.
+                                   Second argument: always True (indicating Shift was held).
+    """
+
     shiftClicked = QtCore.pyqtSignal(bool, bool)
 
     def mousePressEvent(self, event):
+        """
+        Overrides the default mouse press event to detect Shift-modified clicks.
+
+        If the Shift key is held, emits the `shiftClicked` signal and skips the default behavior.
+        Otherwise, proceeds with the normal QPushButton behavior.
+
+        Args:
+            event (QMouseEvent): The mouse press event.
+        """
+        
         if (event.modifiers() == QtCore.Qt.ShiftModifier):
             self.shiftClicked.emit(self.isChecked(), True)
             return
         super().mousePressEvent(event)
 
     def animateShiftClick(self):
+        """
+        Simulates a Shift-click animation and emits the `shiftClicked` signal.
+
+        This method is used to visually and functionally trigger a Shift-click programmatically,
+        typically to implement Shift-click behavior from a keyboard shortcut (e.g., Ctrl+Shift+S).
+        """
+
         self.setCheckable(True)
         self.setChecked(True)
         QtCore.QTimer.singleShot(100, self._doAnimateShiftClick)
 
     def _doAnimateShiftClick(self):
+        """
+        Internal method called after a short delay to reset the button state
+        and emit the `shiftClicked` signal.
+
+        This is used by `animateShiftClick` to create a visual click effect.
+        """
+
         self.setChecked(False)
         self.setCheckable(False)
         self.shiftClicked.emit(self.isChecked(), True)
 
 
 class FilterDialog(QDialog):
+    """
+    A modal dialog for configuring low-pass filtering options on a single track.
+
+    Allows the user to:
+      - Choose whether to filter position and/or heading data
+      - Specify cutoff frequencies for each
+      - Select the filter order (1 to 5)
+
+    The dialog validates inputs via PyQt's built-in double validators, and
+    provides OK/Cancel buttons for confirmation.
+
+    Attributes:
+        filter_pos (QCheckBox): Checkbox to enable position filtering.
+        filter_heading (QCheckBox): Checkbox to enable heading filtering.
+        freq_pos (QLineEdit): Input field for position cutoff frequency.
+        freq_heading (QLineEdit): Input field for heading cutoff frequency.
+        filter_order (QComboBox): Dropdown for selecting filter order (1–5).
+        buttonBox (QDialogButtonBox): OK and Cancel buttons.
+    """
+
     def __init__(self, index, *args, **kwargs):
+        """
+        Initializes the FilterDialog UI.
+
+        Args:
+            index (int): The track index to be filtered (used in window title).
+            *args: Additional positional arguments passed to QDialog.
+            **kwargs: Additional keyword arguments passed to QDialog.
+        """
+
         super().__init__(*args, **kwargs)
 
         self.setWindowTitle(f"Filter Track {index}")
@@ -76,6 +141,31 @@ class FilterDialog(QDialog):
 
 
 class TopLevelControls(QWidget):
+    """
+    Top-level toolbar widget for track editing operations in the FixTrack UI.
+
+    This widget provides global control buttons for manipulating tracks,
+    including actions like saving, linking, breaking, undo/redo, toggling
+    visibility, heading estimation, and interpolation direction.
+
+    Attributes:
+        _parent (VideoWidget): Reference to the parent VideoWidget.
+        buttons (list): All buttons for unified enable/disable behavior.
+        last_addr (tuple or None): (track_idx, frame_idx) of the first point selected for linking.
+        vis_toggle_state (bool): Toggles global visibility of tracks.
+        _fname_save (str or None): Last-used filename when saving track data.
+
+        btn_add_track (QPushButton): Add a new track.
+        btn_toggle_vis (QPushButton): Toggle visibility of all tracks.
+        btn_save_tracks (ShiftPushbutton): Save track data (.h5), with Shift-click override.
+        btn_undo (QPushButton): Undo the last action on selected track.
+        btn_redo (QPushButton): Redo the last undone action.
+        btn_heading (QPushButton): Toggle visibility of heading vectors.
+        btn_interp_l (QPushButton): Interpolate backward.
+        btn_interp_r (QPushButton): Interpolate forward.
+        btn_link (QPushButton): Begin or confirm linking of two track points.
+        btn_break (QPushButton): Break a selected track at the current frame.
+    """
     fname_add = os.path.join(os.path.dirname(__file__), "icons", "plus.svg")
     fname_eye = os.path.join(os.path.dirname(__file__), "icons", "eye.svg")
     fname_save = os.path.join(os.path.dirname(__file__), "icons", "save.svg")
@@ -87,7 +177,15 @@ class TopLevelControls(QWidget):
     fname_link = os.path.join(os.path.dirname(__file__), "icons", "link.svg")
     fname_break = os.path.join(os.path.dirname(__file__), "icons", "scissors.svg")
 
+    
     def __init__(self, parent):
+        """
+        Initializes the TopLevelControls layout with all control buttons.
+
+        Args:
+            parent (VideoWidget): The parent widget, typically the main window container.
+        """
+
         QWidget.__init__(self, parent)
         self._parent = parent
         self.buttons = []
@@ -197,7 +295,20 @@ class TopLevelControls(QWidget):
 
         self.setLayout(vl)
 
+    
     def cb_marker_clicked(self, idx_track, idx_frame, modifiers):
+        """
+        Handles click events on track markers when in linking mode.
+
+        If no marker was previously selected, stores the current one.
+        If a previous marker exists, links the two selected markers.
+
+        Args:
+            idx_track (int): Index of the clicked track.
+            idx_frame (int): Frame index of the clicked point.
+            modifiers: Keyboard modifiers from the event (currently unused).
+        """
+
         if not self.btn_link.isChecked():
             self.last_addr = (idx_track, idx_frame)
             self.btn_link.setEnabled(True)
@@ -218,7 +329,18 @@ class TopLevelControls(QWidget):
         self.last_addr = None
         self.btn_link.setEnabled(False)
 
+    
     def cb_btn_link(self, checked):
+        """
+        Enables or disables linking mode.
+
+        Disables most UI buttons and shows instructions when linking is active.
+        Re-enables everything when linking is canceled or completed.
+
+        Args:
+            checked (bool): Whether the link button is active.
+        """
+        
         for btn in self.buttons:
             btn.setEnabled(not checked)
 
@@ -241,7 +363,15 @@ class TopLevelControls(QWidget):
         else:
             self._parent.track_edit_bar.show_msg.emit("")
 
+
     def cb_btn_break(self, checked):
+        """
+        Breaks the currently selected track at the current frame.
+
+        Args:
+            checked (bool): Unused; signal parameter from button.
+        """
+
         idx_track = self._parent.idx_selected()
         idx_frame = self._parent.canvas.frame_num
         self._parent.canvas.tracks.break_track(idx_track, idx_frame)
@@ -250,16 +380,38 @@ class TopLevelControls(QWidget):
         self._parent.canvas.on_frame_change()
 
     def cb_btn_redo(self, clicked):
+        """
+        Redoes the last undone action on the selected track.
+
+        Args:
+            clicked (bool): Unused; signal parameter from button.
+        """
+
         idx_sel_track = self._parent.idx_selected()
         self._parent.canvas.tracks.redo(idx_sel_track)
         self._parent.canvas.on_frame_change()
 
     def cb_btn_undo(self, clicked):
+        """
+        Undoes the last action on the selected track.
+
+        Args:
+            clicked (bool): Unused; signal parameter from button.
+        """
+
         idx_sel_track = self._parent.idx_selected()
         self._parent.canvas.tracks.undo(idx_sel_track)
         self._parent.canvas.on_frame_change()
 
     def cb_btn_save_tracks(self, checked, save_as=False):
+        """
+        Saves track data to an HDF5 file. Prompts for a filename if none is set.
+
+        Args:
+            checked (bool): Whether the save button is clicked (or Shift-clicked).
+            save_as (bool): If True, always prompt for a new save location.
+        """
+
         # Get filename if necessary
         if (self._fname_save is None) or save_as:
             ext = ".h5"
@@ -285,15 +437,37 @@ class TopLevelControls(QWidget):
         self._parent.mutated.emit(False)
 
     def cb_btn_heading(self, checked):
-        self._parent.canvas.visuals["tracks"].visuals["headings"].visible = checked
+        """
+        Toggles visibility of heading vectors on all tracks.
 
+        Args:
+            checked (bool): Whether the heading button is checked.
+        """
+
+        self._parent.canvas.visuals["tracks"].visuals["headings"].visible = checked
+    
+    
     def cb_toggle_vis(self, clicked):
+        """
+        Toggles the visibility of all tracks in the GUI by clicking each toggle button.
+
+        Args:
+            clicked (bool): Unused; signal parameter from button.
+        """
+
         for idx, tw in self._parent.track_edit_bar.track_widgets.items():
             if tw.btn_visible.isChecked() != self.vis_toggle_state:
                 tw.btn_visible.animateClick()
         self.vis_toggle_state ^= True
 
     def cb_add_new_track(self, clicked):
+        """
+        Adds a new empty track to the canvas and refreshes the track layout.
+
+        Args:
+            clicked (bool): Unused; signal parameter from button.
+        """
+
         self._parent.canvas.tracks.add_track()
         self._parent.canvas.on_frame_change()
         self._parent.setup_track_edit_bar(select_last=True)
@@ -301,9 +475,32 @@ class TopLevelControls(QWidget):
 
 
 class TrackEditLayoutBar(QWidget):
+    """
+    Scrollable layout bar containing interactive widgets for editing individual tracks.
+
+    Each track is represented by a `TrackEditItem`, and this layout manages their
+    creation, selection, visibility toggles, and user-triggered messages.
+
+    Attributes:
+        _parent (VideoWidget): Reference to the parent widget (typically `VideoWidget`).
+        track_widgets (dict[int, TrackEditItem]): Dictionary mapping track indices to their corresponding widgets.
+        radio_button_group (QButtonGroup): Ensures only one track is selected at a time.
+        vbox (QVBoxLayout): Vertical layout container for all track widgets.
+    
+    Signals:
+        show_msg (str): Used to display a message on the parent window's status bar.
+    """
+
     show_msg = QtCore.pyqtSignal(str)
 
     def __init__(self, parent):
+        """
+        Initializes the TrackEditLayoutBar and sets up message routing to the status bar.
+
+        Args:
+            parent (VideoWidget): The parent widget that owns this layout bar.
+        """
+
         QWidget.__init__(self, parent)
         self._parent = parent
         self.reset()
@@ -311,21 +508,53 @@ class TrackEditLayoutBar(QWidget):
         self.show_msg.connect(self._parent._parent.statusBar().showMessage)
 
     def idx_selected(self):
+        """
+        Returns the index of the currently selected track.
+
+        Returns:
+            int or None: Track index if one is selected, otherwise None.
+        """
+
         for idx, wid in self.track_widgets.items():
             if wid.btn_selected.isChecked():
                 return idx
         return None
 
     def mutated(self, b=True):
+        """
+        Emits a mutation signal to indicate the project state has changed (e.g., for save prompting).
+
+        Args:
+            b (bool): Whether a mutation occurred (default is True).
+        """
+
         self._parent.mutated.emit(b)
 
     def reset(self):
+        """
+        Clears all existing track widgets and resets the layout.
+
+        This is typically used when reinitializing the editor (e.g., loading a new file).
+        """
+
         self.track_widgets = {}
         self.vbox = QVBoxLayout()
         self.radio_button_group = QButtonGroup(self)
         self.setFocusPolicy(QtCore.Qt.NoFocus)
 
     def add_track(self, index, select=False, last=False):
+        """
+        Adds a new TrackEditItem to the layout for a given track index.
+
+        Args:
+            index (int): Track index to add.
+            select (bool): Whether this track should be initially selected.
+            last (bool): If True, finalizes the layout after adding this track.
+    
+        Raises:
+            AssertionError: If a track with the given index already exists.
+        """
+
         assert index not in self.track_widgets, "Attempting to add duplicate track %s" % (
             index
         )
@@ -347,12 +576,44 @@ class TrackEditLayoutBar(QWidget):
             self.finalize_layout()
 
     def finalize_layout(self):
+        """
+        Finalizes the layout by adding vertical stretch and enabling exclusive selection.
+
+        Should be called after all tracks are added (typically when `last=True` in `add_track`).
+        """
+
         self.vbox.addStretch()
         self.setLayout(self.vbox)
         self.radio_button_group.setExclusive(True)
 
 
 class TrackEditItem(QGroupBox):
+    """
+    A control widget for a single track, used within the TrackEditLayoutBar.
+
+    Displays buttons to manage an individual track, including visibility,
+    deletion, heading estimation, filtering, and selection.
+
+    Attributes:
+        _parent (TrackEditLayoutBar): Parent widget that manages all track items.
+        index (int): The index of this track.
+        buttons (list): All child buttons in this widget for unified access.
+
+        btn_visible (QPushButton): Toggles the visibility of the track.
+        icon_eye (QIcon): Icon for "visible" state.
+        icon_eye_off (QIcon): Icon for "hidden" state.
+
+        btn_del (QPushButton): Deletes the entire track.
+        btn_rem (QPushButton): Removes detections in a selected range.
+        btn_heading (QPushButton): Estimates the heading vector for the track.
+        btn_filter (QPushButton): Applies filtering to position or heading data.
+        btn_selected (QRadioButton): Selects this track for editing.
+
+    Signals:
+        sig_set_track_vis (int, int): Emitted when the track's visibility is toggled.
+                                      Format: (track_index, visible_flag)
+    """
+
     groupbox_style = """
      QGroupBox {
          border: 4px solid #%s;
@@ -379,6 +640,16 @@ class TrackEditItem(QGroupBox):
     fname_filter = os.path.join(os.path.dirname(__file__), "icons", "filter.svg")
 
     def __init__(self, index, parent, radio_bg, select):
+        """
+        Initializes a TrackEditItem with buttons and layout for managing a single track.
+
+        Args:
+            index (int): The track index this widget represents.
+            parent (TrackEditLayoutBar): The container layout bar.
+            radio_bg (QButtonGroup): Button group to enforce exclusive selection.
+            select (bool): Whether this track should be selected initially.
+        """
+
         QWidget.__init__(self, parent)
         layout = QGridLayout()
         self.index = index
@@ -458,6 +729,15 @@ class TrackEditItem(QGroupBox):
         self.setStyleSheet(self.groupbox_style % (f"{c[0]:02X}{c[1]:02X}{c[2]:02X}", "normal"))
 
     def cb_btn_selected(self, checked):
+        """
+        Called when the "Select" radio button is toggled.
+
+        Changes the styling of the widget to highlight selection and ensures visibility in scroll view.
+
+        Args:
+            checked (bool): Whether this track is now selected.
+        """
+
         if checked:
             c = (color_from_index(self.index) * 255).astype(np.uint8)
             self.setStyleSheet(
@@ -473,6 +753,16 @@ class TrackEditItem(QGroupBox):
         self._parent._parent.scroll_area.ensureWidgetVisible(self)
 
     def check_freq_val(self, dlg):
+        """
+        Validates the cutoff frequency entered in the filter dialog.
+
+        Args:
+            dlg (QLineEdit): The input field to validate.
+
+        Returns:
+            bool: True if the value is valid, False otherwise.
+        """
+
         txt = dlg.text()
         if txt == "":
             msg = f"No cutoff frequency provided {dlg.text()}"
@@ -490,11 +780,25 @@ class TrackEditItem(QGroupBox):
         return True
 
     def cb_btn_heading(self, checked):
+        """
+        Estimates the heading vector of the track using direction of motion.
+
+        Args:
+            checked (bool): Unused; included for compatibility with clicked signal.
+        """
+
         self._parent._parent.canvas.tracks[self.index].estimate_heading()
         self._parent._parent.canvas.on_frame_change()
         self._parent.mutated()
 
     def cb_btn_filter(self, checked):
+        """
+        Opens the filter dialog and applies a low-pass filter to position and/or heading.
+
+        Args:
+            checked (bool): Unused; included for compatibility with clicked signal.
+        """
+
         dlg = FilterDialog(self.index, self)
         if dlg.exec_():
             pass
@@ -527,6 +831,13 @@ class TrackEditItem(QGroupBox):
         self._parent.mutated()
 
     def cb_btn_visible(self, checked):
+        """
+        Toggles visibility of the track in the canvas.
+
+        Args:
+            checked (bool): Whether the track is now marked as visible.
+        """
+
         self.sig_set_track_vis.emit(self.index, not checked)
         if checked:
             self.btn_visible.setIcon(self.icon_eye_off)
@@ -534,6 +845,13 @@ class TrackEditItem(QGroupBox):
             self.btn_visible.setIcon(self.icon_eye)
 
     def cb_btn_del(self, checked):
+        """
+        Deletes the track entirely and refreshes the canvas and layout.
+
+        Args:
+            checked (bool): Unused; included for compatibility with clicked signal.
+        """
+
         print(f"Deleting track {self.index}")
         self._parent._parent.canvas.tracks.rem_track(self.index)
         self._parent._parent.canvas.on_frame_change()
@@ -541,6 +859,13 @@ class TrackEditItem(QGroupBox):
         self._parent.mutated()
 
     def cb_btn_rem(self, checked):
+        """
+        Removes detections from the current track in the selected frame range.
+
+        Args:
+            checked (bool): Unused; included for compatibility with clicked signal.
+        """
+
         idx_sel_a = self._parent._parent.player_controls._idx_sel_a
         idx_sel_b = self._parent._parent.player_controls._idx_sel_b
         self._parent._parent.canvas.tracks[self.index].rem_dets(idx_sel_a, idx_sel_b)

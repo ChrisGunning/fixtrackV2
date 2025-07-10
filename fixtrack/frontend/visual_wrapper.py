@@ -4,11 +4,36 @@ from fixtrack.frontend.picking import PickingAssistant
 
 
 class VisualWrapper(QtCore.QObject):
+    """
+    Thin wrapper around a visual object to manage its state (enabled, visible, pickable),
+    and interface cleanly with Qt signals/slots.
+
+    Attributes:
+        visual: The underlying visual object (e.g., vispy.visuals.XYZ).
+        _pa (PickingAssistant): Utility for selection / picking support.
+        _cfg (VisualWrapper.Config): Stores enabled/visible/pickable state.
+        _state (VisualWrapper.State): Arbitrary user-defined state dictionary.
+        enabled (bool): Whether the visual is enabled for rendering.
+        visible (bool): Whether the visual is currently visible.
+    """
+
     class State(object):
+        """
+        Flexible container for user-defined visual state.
+        Accepts arbitrary keyword arguments to populate attributes.
+        """
         def __init__(self, **kwargs):
             self.__dict__.update(kwargs)
 
     class Config(object):
+        """
+        Stores persistent visual configuration flags.
+
+        Args:
+            enabled (bool): Whether the visual is enabled for rendering.
+            visible (bool): Whether the visual is visible.
+            pickable (bool): Whether the visual is selectable (used in picking).
+        """
         def __init__(self, enabled=True, visible=True, pickable=False):
             self.enabled = enabled
             self.visible = visible
@@ -20,6 +45,16 @@ class VisualWrapper(QtCore.QObject):
     """
 
     def __init__(self, visual=None, enabled=True, visible=True, pickable=False, **kwargs):
+        """
+        Initialize a VisualWrapper instance.
+
+        Args:
+            visual: The visual object to manage.
+            enabled (bool): Initial enabled state.
+            visible (bool): Initial visible state.
+            pickable (bool): Whether this visual should support picking.
+            **kwargs: Additional state stored in self._state.
+        """
         super(VisualWrapper, self).__init__()
         self.visual = visual
         self.visual.visible = visible  # Actual visibility

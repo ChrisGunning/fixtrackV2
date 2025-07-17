@@ -86,6 +86,7 @@ class TopLevelControls(QWidget):
     fname_heading = os.path.join(os.path.dirname(__file__), "icons", "compass.svg")
     fname_link = os.path.join(os.path.dirname(__file__), "icons", "link.svg")
     fname_break = os.path.join(os.path.dirname(__file__), "icons", "scissors.svg")
+    fname_hide_pos = os.path.join(os.path.dirname(__file__), "icons", "tag.svg")
 
     def __init__(self, parent):
         QWidget.__init__(self, parent)
@@ -189,11 +190,24 @@ class TopLevelControls(QWidget):
         hl5.addWidget(self.btn_break)
         self.buttons.append(self.btn_break)
 
+        hl6 = QHBoxLayout()
+
+        self.btn_hide_pos = QPushButton(self)
+        self.btn_hide_pos.setToolTip("Show/hide all interpolated markers")
+        self.btn_hide_pos.setIcon(QtGui.QIcon(QtGui.QPixmap(self.fname_hide_pos)))
+        self.btn_hide_pos.setCheckable(True)
+        self.btn_hide_pos.clicked.connect(self.cb_btn_hide_pos)
+        self.btn_hide_pos.setFocusPolicy(QtCore.Qt.NoFocus)
+        self.btn_hide_pos.setChecked(True)
+        hl3.addWidget(self.btn_hide_pos)
+        self.buttons.append(self.btn_hide_pos)
+
         vl.addLayout(hl1)
         vl.addLayout(hl2)
         vl.addLayout(hl3)
         vl.addLayout(hl4)
         vl.addLayout(hl5)
+        vl.addLayout(hl6)
 
         self.setLayout(vl)
 
@@ -298,6 +312,10 @@ class TopLevelControls(QWidget):
         self._parent.canvas.on_frame_change()
         self._parent.setup_track_edit_bar(select_last=True)
         self._parent.mutated.emit(True)
+
+    def cb_btn_hide_pos(self, checked):
+        self._parent.canvas.visuals["tracks"].show_pos = checked
+        self._parent.canvas.on_frame_change()
 
 
 class TrackEditLayoutBar(QWidget):

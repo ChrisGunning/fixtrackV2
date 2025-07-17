@@ -7,18 +7,24 @@ from PyQt5 import QtCore, QtWidgets
 class FixtrackWindow(QtWidgets.QMainWindow):
     title = "Track Fixer"
 
-    def __init__(self, fname_video, fname_track, range_slider=True):
+    def __init__(self, fname_video, fname_video2, fname_track, range_slider=True):
         QtWidgets.QMainWindow.__init__(self)
         self.setAttribute(QtCore.Qt.WA_DeleteOnClose)
         self.setWindowTitle(self.title)
         self.statusBar().showMessage(os.path.split(fname_video)[1])
+        lag = None
+
+        # if fname_video2:
+        # lag = update_offset(fname_video, fname_video2)
 
         bgcolor = [0.09, 0.09, 0.11]
         self.main_widget = VideoWidget(
             self,
             fname_video=fname_video,
+            fname_video2=fname_video2,
             fname_track=fname_track,
             range_slider=range_slider,
+            lag=lag,
             bgcolor=bgcolor
         )
         self.main_widget.mutated.connect(self.mutated)

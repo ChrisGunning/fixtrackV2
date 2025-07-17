@@ -10,16 +10,36 @@ class VideoWidget(QtWidgets.QWidget):
     mutated = QtCore.pyqtSignal(bool)
 
     def __init__(
-        self, parent, fname_video=None, fname_track=None, range_slider=True, bgcolor="white"
+        self,
+        parent,
+        fname_video=None,
+        fname_video2=None,
+        fname_track=None,
+        range_slider=True,
+        lag=None,
+        bgcolor="white"
     ):
         super().__init__(parent)
         self._parent = parent
+        self.lag = lag
+        print(f'lag:{lag}')
 
         self.top_level_ctrls = TopLevelControls(self)
 
         self.canvas = VideoCanvas(
             self, fname_video=fname_video, fname_track=fname_track, bgcolor=bgcolor
         )
+
+        if fname_video2:
+            self.canvas2 = VideoCanvas(
+                self, fname_video=fname_video2, fname_track=fname_track, bgcolor=bgcolor
+            )
+
+            self.canvas2.native.setSizePolicy(
+                QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Expanding
+            )
+            self.canvas2.create_native()
+            self.canvas2.native.setParent(self)
 
         self.canvas.native.setSizePolicy(
             QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Expanding
@@ -41,11 +61,35 @@ class VideoWidget(QtWidgets.QWidget):
         vl2 = QtWidgets.QVBoxLayout()
         vl1 = QtWidgets.QVBoxLayout()
 
-        vl2.addWidget(self.canvas.native)
+        hl2 = QtWidgets.QHBoxLayout()
+        hl2.addWidget(self.canvas.native)
+
+        if fname_video2:
+            hl2.addWidget(self.canvas2.native)
+
+        vl2.addLayout(hl2)
         self.player_controls = PlayerHeadWidget(
             self, self.canvas.video, range_slider=range_slider
         )
-        vl2.addWidget(self.player_controls)
+
+        if fname_video2:
+            self.player_controls2 = PlayerHeadWidget(
+                self, self.canvas2.video, range_slider=range_slider
+            )
+
+            self.dual_track_controls = PlayerHeadWidget(
+                self,
+                self.canvas.video,
+                range_slider=False,
+                dual_video_reader=self.canvas2.video,
+            )
+
+        if fname_video2:
+            vl2.addWidget(self.dual_track_controls)
+            vl2.addWidget(self.player_controls)
+            vl2.addWidget(self.player_controls2)
+        else:
+            vl2.addWidget(self.player_controls)
 
         hl1 = QtWidgets.QHBoxLayout()
 
@@ -58,6 +102,19 @@ class VideoWidget(QtWidgets.QWidget):
 
         self.player_controls.sig_frame_change.connect(self.canvas.on_frame_change)
         self.player_controls.sig_frame_change.emit(0)
+
+        if fname_video2:
+            self.player_controls2.sig_frame_change.connect(self.canvas2.on_frame_change)
+            self.player_controls2.sig_frame_change.emit(0)
+            self.dual_track_controls.sig_frame_change.connect(self.canvas.on_frame_change)
+            self.dual_track_controls.sig_frame_change.connect(self.canvas2.on_frame_change)
+            self.dual_track_controls.sig_frame_change.emit(0)
+
+            self.dual_track_controls.play_button.clicked.connect(self.sync_play_state)
+            self.dual_track_controls.prevButton.clicked.connect(self.sync_prev_state)
+            self.dual_track_controls.forwardButton.clicked.connect(self.sync_forward_state)
+            self.dual_track_controls.backButton.clicked.connect(self.sync_back_state)
+            self.dual_track_controls.nextButton.clicked.connect(self.sync_next_state)
 
     def setup_track_edit_bar(self, select_last=False):
         self.track_edit_bar = TrackEditLayoutBar(self)
@@ -72,6 +129,34 @@ class VideoWidget(QtWidgets.QWidget):
 
     def idx_selected(self):
         return self.track_edit_bar.idx_selected()
+
+    def sync_prev_state(self):
+        self.player_controls.cb_first()
+        self.player_controls2.cb_first()
+
+    def sync_next_state(self):
+        self.player_controls.cb_last()
+        self.player_controls2.cb_last()
+
+    def sync_forward_state(self):
+        self.player_controls.cb_forward()
+        self.player_controls2.cb_forward()
+
+    def sync_back_state(self):
+        self.player_controls.cb_back()
+        self.player_controls2.cb_back()
+
+    def sync_play_state(self):
+        if self.dual_track_controls._playing:
+            if not self.player_controls._playing:
+                self.player_controls.cb_play()
+            if not self.player_controls2._playing:
+                self.player_controls2.cb_play()
+        else:
+            if self.player_controls._playing:
+                self.player_controls.cb_stop()
+            if self.player_controls2._playing:
+                self.player_controls2.cb_stop()
 
     def keyPressEvent(self, event):
         key = event.key()
@@ -98,17 +183,39 @@ class VideoWidget(QtWidgets.QWidget):
             self.top_level_ctrls.btn_redo.animateClick()
         elif key == QtCore.Qt.Key_Space:
             self.player_controls.toggle_play()
+            if hasattr(self, "player_controls2"):
+                self.player_controls2.toggle_play()
         elif key == QtCore.Qt.Key_Left:
             self.player_controls.decr()
+            if hasattr(self, "player_controls2"):
+                self.player_controls2.decr()
         elif key == QtCore.Qt.Key_Right:
             self.player_controls.incr()
+            if hasattr(self, "player_controls2"):
+                self.player_controls2.incr()
         elif key == QtCore.Qt.Key_C:
             self.canvas.toggle_cam()
+            if hasattr(self, "canvas2"):
+                self.canvas2.toggle_cam()
         elif key == QtCore.Qt.Key_V:
+            self.canvas.visuals["img2"].visible ^= True
             self.canvas.visuals["img"].visible ^= True
+            if hasattr(self, "canvas2"):
+                self.canvas2.visuals["img2"].visible ^= True
+                self.canvas2.visuals["img"].visible ^= True
         elif key == QtCore.Qt.Key_BracketLeft:
             self.player_controls.range_slider.setFirstPosition(self.player_controls.frame_num)
             self.canvas.on_frame_change()
+            if hasattr(self, "player_controls2"):
+                self.player_controls2.range_slider.setFirstPosition(
+                    self.player_controls2.frame_num
+                )
+                self.canvas2.on_frame_change()
         elif key == QtCore.Qt.Key_BracketRight:
             self.player_controls.range_slider.setSecondPosition(self.player_controls.frame_num)
             self.canvas.on_frame_change()
+            if hasattr(self, "player_controls2"):
+                self.player_controls2.range_slider.setSecondPosition(
+                    self.player_controls2.frame_num
+                )
+                self.canvas2.on_frame_change()

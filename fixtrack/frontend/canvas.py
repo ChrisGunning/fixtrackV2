@@ -7,6 +7,7 @@ from fixtrack.backend.track_io import TrackIO
 from fixtrack.backend.video_reader import VideoReader
 from fixtrack.frontend.track import TrackCollectionVisual
 from fixtrack.frontend.visual_wrapper import VisualCollection, VisualWrapper
+from fixtrack.frontend.track_merger import TrackMergeDialog
 
 
 class CanvasBase(scene.SceneCanvas):
@@ -109,7 +110,9 @@ class VideoCanvas(CanvasBase):
         if self.fname_tracks is None:
             self.tracks = TrackIO.blank(self.video.num_frames)
         else:
-            self.tracks = TrackIO.load(fname_track)
+            self.tracks = TrackIO.load(
+                fname_track, video_width=self.video.width, video_height=self.video.height
+            )
 
         self.frame_num = 0
 
@@ -144,12 +147,19 @@ class VideoCanvas(CanvasBase):
             self.view.camera = "panzoom"
 
     def on_frame_change(self, frame_num=None):
+        # start_time = time.time()
         if frame_num is not None:
             self.frame_num = frame_num
 
+        # frame_fetch_start = time.time()
         img = self.video.get_frame(self.frame_num)
-        self.visuals["img"].set_data(img)
+        # frame_fetch_end = time.time()
 
+        # set_data_start = time.time()
+        self.visuals["img"].set_data(img)
+        # set_data_end = time.time()
+
+        # camera_start = time.time()
         if not isinstance(self.view.camera, scene.cameras.PanZoomCamera):
             idx_track = self._parent.track_edit_bar.idx_selected()
             if self.tracks[idx_track]["det"][self.frame_num]:
@@ -158,9 +168,44 @@ class VideoCanvas(CanvasBase):
                 vec = self.tracks[idx_track]["vec"][self.frame_num]
                 ang = np.arctan2(vec[1], vec[0])
                 self.view.camera.azimuth = ang * 180.0 / np.pi - 90.0
-        self.update()
+        # camera_end = time.time()
 
+        # update_start = time.time()
+        self.update()
+        # update_end = time.time()
+
+        # tracks_start = time.time()
         self.visuals["tracks"].on_frame_change(frame_num)
+        # tracks_end = time.time()
+
+        # end_time = time.time()
+        # target_frame_time = 1.0 / self.video.fps if hasattr(self.video, 'fps') else 0
+        # lag = (end_time - start_time) - target_frame_time if target_frame_time > 0 else 0
+        # lag = max(0, lag)
+        # print(f"Frame {self.frame_num} timing:")
+        # print(f"  Get frame: {(frame_fetch_end - frame_fetch_start)*1000:.2f}ms")
+        # print(f"  Set data: {(set_data_end - set_data_start)*1000:.2f}ms")
+        # print(f"  Camera adjust: {(camera_end - camera_start)*1000:.2f}ms")
+        # print(f"  Update view: {(update_end - update_start)*1000:.2f}ms")
+        # print(f"  Tracks update: {(tracks_end - tracks_start)*1000:.2f}ms")
+        # print(f"  Total time: {(end_time - start_time)*1000:.2f}ms")
+        # print(f"  Target frame time: {target_frame_time*1000:.2f}ms")
+        # print(f"  Lag: {lag*1000:.2f}ms")
+
+    def show_track_merger(self):
+        if not hasattr(self, 'track_merger_dialog') or self.track_merger_dialog is None:
+            self.unfreeze()
+            self.track_merger_dialog = TrackMergeDialog(self.tracks, parent=self._parent)
+            self.freeze()
+            self.track_merger_dialog.tracks_merged.connect(self.on_tracks_merged)
+
+        self.track_merger_dialog.show()
+        self.track_merger_dialog.raise_()
+        self.track_merger_dialog.activateWindow()
+
+    def on_tracks_merged(self):
+        self.on_frame_change(self.frame_num)
+        self.mutated(True)
 
     def on_mouse_press(self, event):
         img = self.render_picking(event)
@@ -184,6 +229,9 @@ class VideoCanvas(CanvasBase):
         # Forward the Qt event to the parent
         if len(event.modifiers) and ("Control" in event.modifiers):
             self.view.camera.interactive = False
+            if event.key == 'M':
+                self.show_track_merger()
+                return
         self._parent.keyPressEvent(event._native)
 
     def on_key_release(self, event):

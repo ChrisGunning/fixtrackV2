@@ -7,11 +7,9 @@ from fixtrack.frontend.pickable_line import PickableLine
 from fixtrack.frontend.pickable_markers import PickableMarkers
 from fixtrack.frontend.visual_wrapper import VisualCollection, VisualWrapper
 
-'''
-extends VisualCollection
 
-Attributes:
-'''
+import time
+
 class TrackCollectionVisual(VisualCollection):
     """
     A visual collection consisting of a line, pickable markers, and heading vectors
@@ -19,15 +17,20 @@ class TrackCollectionVisual(VisualCollection):
 
     sig_frame_change = QtCore.pyqtSignal(int)
 
+    #TODO: create self.visuals["bounding_boxes"] = instance of custom bounding box class
+        #the bounding box class should be pickable (inherit pickeable base)
     def __init__(self, tracks, parent=None, enabled=True, visible=True):
         super(TrackCollectionVisual,
               self).__init__(parent=parent, enabled=enabled, visible=visible)
         self.tracks = tracks
 
-        pos, seg, vec = self.get_data()
+        #cache data! (will need to get bound box data too)
+        self.pos, self.seg, self.vec = self.get_data()
+
+        #velocity vectors
         self.visuals["headings"] = PickableLine(
             parent=parent.view.scene,
-            data=vec,
+            data=self.vec,
             pickable=True,
             selectable=False,
             hoverable=True,
@@ -39,9 +42,10 @@ class TrackCollectionVisual(VisualCollection):
             cmap_func=self.cmap_vec_func,
         )
 
+        #(x, y) positions
         self.visuals["markers"] = PickableMarkers(
             parent=parent.view.scene,
-            data=pos,
+            data=self.pos,
             pickable=True,
             selectable=False,
             hoverable=True,
@@ -55,15 +59,16 @@ class TrackCollectionVisual(VisualCollection):
         )
         self.visuals["markers"].sig_point_clicked.connect(self.slot_marker_clicked)
 
+        #segments connecting (x, y) markers?
         self.visuals["traces"] = VisualWrapper(
             scene.visuals.Line(
-                seg,
+                self.seg,
                 connect="segments",
-                color=self.cmap_seg_func(seg),
+                color=self.cmap_seg_func(self.seg),
                 width=5,
                 parent=parent.view.scene
             ),
-            segs=seg,
+            segs=self.seg,
             width=10,
             connect="segments",
         )
@@ -74,33 +79,84 @@ class TrackCollectionVisual(VisualCollection):
     def frame_num(self):
         return self._parent.frame_num
 
-    def on_frame_change(self, frame_num=None):
-        pos, seg, vec = self.get_data()
-        if frame_num is not None:
-            self.visuals["markers"].set_selected(frame_num)
-        self.visuals["markers"].set_data(pos)
-        self.visuals["headings"].set_data(vec)
 
-        self.visuals["traces"].visual.set_data(pos=seg, color=self.cmap_seg_func(seg))
+    #TODO: only refetch data when it has been modified (keep dirty tag?)
+    def on_frame_change(self, frame_num=None, refresh_data=True):
+
+        #redraw all data when data is edited (still extremely costly... possible to only redraw edited data only)
+        if refresh_data:
+            # print("refreshing data at frame " + str(frame_num))
+            self.pos, self.seg, self.vec = self.get_data()
+            self.visuals["markers"].set_data(self.pos)
+            self.visuals["headings"].set_data(self.vec)
+            self.visuals["traces"].visual.set_data(pos=self.seg, color=self.cmap_seg_func(self.seg)) #only changes w/ data updates
+            return
+
+        #given frame num when playing video
+        if frame_num is not None and self.tracks.num_visible_tracks > 0:
+             #highlighting marker / dot on current frame
+
+            #TODO: calls to set_data are very expensive just for a single visual update.
+            self.visuals["markers"].set_selected(frame_num)
+            self.visuals["markers"].set_data(self.pos)
+            self.visuals["headings"].set_data(self.vec)
+            self.visuals["traces"].visual.set_data(pos=self.seg, color=self.cmap_seg_func(self.seg))
+
 
     def slot_set_track_vis(self, idx, vis):
+        """
+        Slot function for toggling visiblity of a single track
+
+        Args:
+            idx (int): index of track to toggle
+            vis (bool): new visibility state
+        """
         self.tracks[idx].visible = vis
         self.on_frame_change()
+
+
+    def set_all_track_visibilities(self, indices, vis):
+        """
+        Sets the visibility state for specificed tracks
+
+        Args:
+            indices (list): list of track indices to toggle
+            vis (bool): new visibility state
+        """
+        for i in indices:
+            self.tracks[i].visible = vis
+        self.on_frame_change()
+
 
     def track_address_from_vec_idx(self, vec_idx):
         track_idx = vec_idx // self.tracks.num_frames
         frame_idx = vec_idx % self.tracks.num_frames
         return track_idx, frame_idx
 
+
+    #TODO: retrieve width + height data as well
     def get_data(self, vec_len=25):
+        """
+        Get position, segment, and heading vector data.
+
+        Args:
+            vec_len (int): Length to scale the heading vectors. Default is 25.
+
+        Returns:
+            tuple: A tuple of three NumPy arrays:
+                - pos (ndarray): Marker positions, shape (N, 3).
+                - seg (ndarray): Segments connecting markers, shape (M, 3).
+                - vec (ndarray): Heading vectors (start and end points), shape (2N, 3).
+        """
+        #original version: returns all tracks (even those toggled OFF! -> expensive set_data for invisible tracks)
         pos = np.vstack([track["pos"] for track in self.tracks])
         seg = np.vstack([np.repeat(track["pos"], 2, axis=0)[1:-1] for track in self.tracks])
-        v = normalize_vecs(np.vstack([track["vec"] for track in self.tracks.tracks]))
+        v = normalize_vecs(np.vstack([track["vec"] for track in self.tracks]))
         vec = np.zeros((2 * len(pos), 3))
         vec[0::2] = pos
         vec[1::2] = pos + v * vec_len
         return pos, seg, vec
-
+    
     def cmap_pos_func(self, data, alpha=0.5):
         c = color_from_index(range(self.tracks.num_tracks))
         c_ctrl = [0.0, 1.0, 0.0, alpha]
@@ -174,12 +230,12 @@ class TrackCollectionVisual(VisualCollection):
                 colors[frame_idx:frame_idx + chunk_len][idx_b * 2:, 3] *= 0
         return colors
 
+
     def slot_marker_clicked(
         self, id_clicked, idx_sel, idx_sel_prev, idx_clicked, idx_hover, modifiers
     ):
         idx_track, idx_frame = self.track_address_from_vec_idx(idx_clicked)
-        self._parent._parent.track_edit_bar.track_widgets[idx_track].btn_selected.animateClick(
-        )
+        self._parent._parent.track_edit_bar.track_widgets[idx_track].btn_selected.animateClick()
         self._parent._parent.top_level_ctrls.cb_marker_clicked(idx_track, idx_frame, modifiers)
         self._parent._parent.player_controls.set_frame_num(idx_frame)
 
@@ -193,6 +249,8 @@ class TrackCollectionVisual(VisualCollection):
                 v.on_mouse_press(event, img)
         c0 = self.visuals["markers"].idx_clicked >= 0
         c1 = self.visuals["headings"].idx_clicked >= 0
+
+        #Shift + left click, neither marker nor header clicked => add detection (?)
         if (util.keys.SHIFT in event.modifiers) and (event.button == 1) and not (c0 or c1):
             if not isinstance(self._parent.view.camera, scene.PanZoomCamera):
                 return
@@ -204,6 +262,8 @@ class TrackCollectionVisual(VisualCollection):
                 )
                 self._parent.mutated()
                 self._parent.on_frame_change()
+
+        #Shit + right click, either marker or header clicked => remove detection (?)
         elif (util.keys.SHIFT in event.modifiers) and (event.button == 2) and (c0 or c1):
             idx_track, idx_frame = self.track_address_from_vec_idx(
                 max(self.visuals["headings"].idx_clicked, self.visuals["markers"].idx_clicked)
@@ -228,6 +288,8 @@ class TrackCollectionVisual(VisualCollection):
         top_level_ctrls = self._parent._parent.top_level_ctrls
         interp_l = top_level_ctrls.btn_interp_l.isChecked()
         interp_r = top_level_ctrls.btn_interp_r.isChecked()
+
+        #other visuals custom react to mouse movement
         for v in self.visuals.values():
             if hasattr(v, "on_mouse_move"):
                 v.on_mouse_move(event, img)
@@ -237,7 +299,10 @@ class TrackCollectionVisual(VisualCollection):
             return
 
         trail = event.trail()
+        #Shift + left click
         if (util.keys.SHIFT in event.modifiers) and (event.button == 1):
+
+            #edit heading (direction) vector
             if (self.visuals["headings"].idx_clicked >= 0) and (trail is not None):
                 idx_track, idx_frame = self.track_address_from_vec_idx(
                     self.visuals["headings"].idx_clicked
@@ -253,6 +318,8 @@ class TrackCollectionVisual(VisualCollection):
                 )
                 self._parent.mutated()
                 self._parent.on_frame_change()
+
+            #edit marker (position dot)
             elif (self.visuals["markers"].idx_clicked >= 0) and (trail is not None):
                 idx_track, idx_frame = self.track_address_from_vec_idx(
                     self.visuals["markers"].idx_clicked

@@ -82,7 +82,7 @@ class VideoWidget(QtWidgets.QWidget):
         self.setLayout(hl1)
 
         self.player_controls.sig_frame_change.connect(self.canvas.on_frame_change)
-        self.player_controls.sig_frame_change.emit(0)
+        self.player_controls.sig_frame_change.emit(0, True)
 
     def setup_track_edit_bar(self, select_last=False):
         """

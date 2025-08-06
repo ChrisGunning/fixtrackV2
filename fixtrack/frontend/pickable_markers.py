@@ -7,7 +7,7 @@ from vispy import scene
 
 class PickableMarkers(PickableBase):
     """
-    Markers that can highlight on hover and be selected
+    Markers that can highlight on hover and be selected, placed on the (x, y) coordinates of fish
     """
     class State(PickableBase.State):
         def __init__(self, **kwargs):
@@ -24,6 +24,7 @@ class PickableMarkers(PickableBase):
     _kwargs_ignore = ["size", "color_select", "color_hover"]
 
     def __init__(self, parent=None, data=np.zeros((0, 3)), select_scale=2.0, **kwargs):
+        self.count = 0
         super(PickableMarkers, self).__init__(
             scene.visuals.Markers(pos=data, parent=parent), data=data, parent=parent, **kwargs
         )
@@ -83,6 +84,9 @@ class PickableMarkers(PickableBase):
             }
             self._state.edge_colors[:, 3] = self._state.colors[:, 3]
 
+            self.count += 1
+            # print(f"setting marker data {self.count} times")
+
             self.visual.set_data(
                 pos=self._state.data,
                 size=self._state.sizes,
@@ -92,11 +96,11 @@ class PickableMarkers(PickableBase):
                 **kwargs
             )
         else:
-            self.visual.set_data(np.zeros((0, 3)))
+            self.visual.set_data(np.zeros((0, 3))) #vispy doesn't accept empty data, dummy data instead
 
     def _set_data_false(self):
         if len(self._state.data) > 0:
-            colors = self._pa.unique_colors(id(self)) / 255.0
+            colors = self._pa.unique_colors(id(self)) / 255.0 #picking assistant for color selection?
             colors[self._state.colors[:, 3] < 1.0e-3] = 0.0
             self.visual.set_data(
                 pos=self._state.data,
@@ -107,3 +111,5 @@ class PickableMarkers(PickableBase):
             )
         else:
             self.visual.set_data(np.zeros((0, 3)))
+        
+        # print("marker data false")

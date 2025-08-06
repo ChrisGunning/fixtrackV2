@@ -12,9 +12,10 @@ class PickableLine(PickableBase):
     _kwargs_ignore = ["color_select", "color_hover"]
 
     def __init__(self, parent=None, data=np.zeros((0, 3)), **kwargs):
+        self.count = 0
         super(PickableLine, self).__init__(
             scene.visuals.Line(pos=data, parent=parent, connect="segments"),
-            data=data,
+            data=data,  #array of (x, y) coordinates?
             parent=parent,
             **kwargs
         )
@@ -55,6 +56,9 @@ class PickableLine(PickableBase):
             self.visual.set_data(pos=self._state.data, color=self._state.colors, **kwargs)
         else:
             self.visual.set_data(np.zeros((0, 3)), color="red")
+        
+        self.count += 1
+        # print(f"setting line data {self.count} times")
 
     def _set_data_false(self):
         if len(self._state.data) > 1:
@@ -68,6 +72,7 @@ class PickableLine(PickableBase):
             )
         else:
             self.visual.set_data(np.zeros((0, 3)), color="red")
+        # print("line data false")
 
     def _hover_idxs(self):
         sel = []

@@ -6,6 +6,9 @@ from fixtrack.frontend.visual_wrapper import VisualWrapper
 
 
 class PickableBase(VisualWrapper):
+    """
+    Stores state (data and metadata) related to visual's interactivity
+    """
     class State(VisualWrapper.State):
         def __init__(self, data, **kwargs):
             super(PickableBase.State, self).__init__(**kwargs)
@@ -28,7 +31,9 @@ class PickableBase(VisualWrapper):
                 if k.startswith("idx"):
                     msg += k + ": " + str(getattr(self, k)) + "\n"
             return msg
-
+    '''
+    Stores
+    '''
     class Config(VisualWrapper.Config):
         def __init__(self, vis_args={}, selectable=True, hoverable=True, **kwargs):
             super(PickableBase.Config, self).__init__(**kwargs)
@@ -42,7 +47,7 @@ class PickableBase(VisualWrapper):
 
     def __init__(
         self,
-        visual,
+        visual, #the VisPy visual (line, marker, etc)
         parent=None,
         enabled=True,
         visible=True,
@@ -79,6 +84,7 @@ class PickableBase(VisualWrapper):
         return cm.rainbow(np.linspace(0.0, 1.0, len(data)))
 
     def _init_data(self):
+        #recoloring?
         n = len(self._state.data)
         state = self._state
         if len(self._pa.unique_colors(id(self), throw=False)) != n:
@@ -90,7 +96,7 @@ class PickableBase(VisualWrapper):
 
     def _process_data(self, data):
         if data is not None:
-            self._state.data = data.copy()
+            self._state.data = data.copy() #why copy over data when data has not changed?
             self._init_data()
             self._clip_idxs()
 
@@ -109,7 +115,10 @@ class PickableBase(VisualWrapper):
         assert False, "Must define set_data_false in derrived class"
 
     def set_data(self, data=None, force_draw=False, redraw=True):
-        if force_draw and data is None:
+        # recoloring necessary for toggling on / off of tracks?
+            # only recolor when the number of tracks have changed / selected new tracks, etc
+
+        if force_draw and data is None: #when / why force_draw used?
             self._process_data(self.data)
         else:
             self._process_data(data)
@@ -117,7 +126,7 @@ class PickableBase(VisualWrapper):
         self._highlight()
 
         if redraw:
-            self._set_data()
+            self._set_data() # set-data in vispy module
 
     def set_idx_mapping(self, m):
         """
@@ -294,15 +303,20 @@ class PickableBase(VisualWrapper):
         self.set_data()
 
     def on_mouse_move(self, event, img, object_id=None):
+        '''
+        Retrives the object under cursor, updates idx, highlights, resets data?
+        '''
         if object_id is None:
             object_id = id(self)
 
-        self._state.idx_hover = -1
         id_clicked, idx = self._pa.img_to_idx(img)
-        if id_clicked == object_id:
-            self._state.idx_hover = idx
-        self._highlight()
-        self.set_data()
+        new_hover = idx if id_clicked == object_id else -1
+
+        #only reset data hover over new item
+        if new_hover != self._state.idx_hover:
+            self._state.idx_hover = new_hover
+            self._highlight()
+            self.set_data()
 
     def flush(self):
         pass

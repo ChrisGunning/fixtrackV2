@@ -379,3 +379,12 @@ class TrackCollection(object):
 
     def __setitem__(self, i, val):
         self.tracks[i] = val
+    
+
+    @property
+    def num_visible_tracks(self):
+        count = 0
+        for track in self.tracks:
+            if track.visible:
+                count += 1
+        return count

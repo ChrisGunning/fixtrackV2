@@ -447,18 +447,32 @@ class TopLevelControls(QWidget):
         self._parent.canvas.visuals["tracks"].visuals["headings"].visible = checked
     
     
+    # def cb_toggle_vis(self, clicked):
+    #     """
+    #     Toggles the visibility of all tracks in the GUI by clicking each toggle button.
+
+    #     Args:
+    #         clicked (bool): Unused; signal parameter from button.
+    #     """
+
+    #     for idx, track_widget in self._parent.track_edit_bar.track_widgets.items():
+    #         if track_widget.btn_visible.isChecked() != self.vis_toggle_state:
+    #             track_widget.btn_visible.animateClick()
+    #     self.vis_toggle_state ^= True
+
+
     def cb_toggle_vis(self, clicked):
         """
-        Toggles the visibility of all tracks in the GUI by clicking each toggle button.
-
-        Args:
-            clicked (bool): Unused; signal parameter from button.
+        Toggles visibility of all tracks
         """
 
-        for idx, tw in self._parent.track_edit_bar.track_widgets.items():
-            if tw.btn_visible.isChecked() != self.vis_toggle_state:
-                tw.btn_visible.animateClick()
-        self.vis_toggle_state ^= True
+        vis = []
+        for idx, track_widget in self._parent.track_edit_bar.track_widgets.items():
+            if self._parent.canvas.tracks[idx].visible == self.vis_toggle_state:
+                track_widget.toggle_vis_btn(self.vis_toggle_state)
+                vis.append(idx)
+        self.vis_toggle_state = not self.vis_toggle_state
+        self._parent.canvas.visuals["tracks"].set_all_track_visibilities(vis, self.vis_toggle_state)
 
     def cb_add_new_track(self, clicked):
         """
@@ -843,6 +857,18 @@ class TrackEditItem(QGroupBox):
             self.btn_visible.setIcon(self.icon_eye_off)
         else:
             self.btn_visible.setIcon(self.icon_eye)
+    
+    def toggle_vis_btn(self, checked):
+        """
+        Toggles state of vis_btn without modifying track visibility. Used for improving performance
+        of showing/hiding all tracks at once.
+        """
+        self.btn_visible.setChecked(checked)
+        if checked:
+            self.btn_visible.setIcon(self.icon_eye_off)
+        else:
+            self.btn_visible.setIcon(self.icon_eye)
+
 
     def cb_btn_del(self, checked):
         """

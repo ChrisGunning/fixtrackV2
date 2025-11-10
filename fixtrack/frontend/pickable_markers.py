@@ -44,6 +44,9 @@ class PickableMarkers(PickableBase):
         self.set_data()
 
     def _selected_idxs(self):
+        '''
+        Returns indexes of selected markers
+        '''
         sel = []
         if self.multi_sel is None:
             if self._state.idx_selected >= 0:
@@ -53,7 +56,7 @@ class PickableMarkers(PickableBase):
         return sel
 
     def _init_data(self):
-        super(PickableMarkers, self)._init_data()
+        super(PickableMarkers, self)._init_data() #recoloring
         n = len(self._state.data)
         self._state.sizes_raw = np.full((n, ), self._cfg.vis_args["size"])
         self._state.sizes = self._state.sizes_raw.copy()
@@ -99,6 +102,9 @@ class PickableMarkers(PickableBase):
             self.visual.set_data(np.zeros((0, 3))) #vispy doesn't accept empty data, dummy data instead
 
     def _set_data_false(self):
+        '''
+        loads each marker with a unique color used for picking detection
+        '''
         if len(self._state.data) > 0:
             colors = self._pa.unique_colors(id(self)) / 255.0 #picking assistant for color selection?
             colors[self._state.colors[:, 3] < 1.0e-3] = 0.0

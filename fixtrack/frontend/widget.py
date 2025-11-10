@@ -105,9 +105,6 @@ class VideoWidget(QtWidgets.QWidget):
     def idx_selected(self):
         """
         Returns the index of the currently selected track.
-
-        Returns:
-            int: Index of the selected track.
         """
         return self.track_edit_bar.idx_selected()
 

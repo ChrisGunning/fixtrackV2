@@ -108,6 +108,18 @@ class PickableBase(VisualWrapper):
         state.idx_clicked = min(state.idx_clicked, n - 1)
         state.idx_hover = min(state.idx_hover, n - 1)
 
+
+        # state = self._state
+        # n = len(self._state.data)
+        # if n == 0:
+        #     state.idx_selected = state.idx_selected_prev = state.idx_clicked = state.idx_hover = -1
+        # else:
+        #     state.idx_selected = min(state.idx_selected, n - 1)
+        #     state.idx_selected_prev = min(state.idx_selected_prev, n - 1)
+        #     state.idx_clicked = min(state.idx_clicked, n - 1)
+        #     state.idx_hover = min(state.idx_hover, n - 1)
+
+
     def _set_data(self):
         assert False, "Must define _set_data in derrived class"
 
@@ -118,12 +130,30 @@ class PickableBase(VisualWrapper):
         # recoloring necessary for toggling on / off of tracks?
             # only recolor when the number of tracks have changed / selected new tracks, etc
 
+
+        # --- Preserve old selection states ---
+        prev_selected = self._state.idx_selected
+        prev_clicked = self._state.idx_clicked
+        prev_hover = self._state.idx_hover
+
+        #existing logic
         if force_draw and data is None: #when / why force_draw used?
             self._process_data(self.data)
         else:
             self._process_data(data)
 
         self._highlight()
+
+
+        # restore indices if valid in new data length
+        n = len(self._state.data)
+        if 0 <= prev_selected < n:
+            self._state.idx_selected = prev_selected
+        if 0 <= prev_clicked < n:
+            self._state.idx_clicked = prev_clicked
+        if 0 <= prev_hover < n:
+            self._state.idx_hover = prev_hover
+
 
         if redraw:
             self._set_data() # set-data in vispy module
@@ -295,12 +325,15 @@ class PickableBase(VisualWrapper):
                 self.idx_hover,
                 event.modifiers,
             )
-            self.set_data()
+            # self.set_data()
+
+            self._set_data()
 
     def on_mouse_release(self, event, img, object_id=None):
         self._state.idx_clicked = -1
         self._highlight()
-        self.set_data()
+        # self.set_data()
+        self._set_data()
 
     def on_mouse_move(self, event, img, object_id=None):
         '''
@@ -316,7 +349,7 @@ class PickableBase(VisualWrapper):
         if new_hover != self._state.idx_hover:
             self._state.idx_hover = new_hover
             self._highlight()
-            self.set_data()
+            self._set_data()
 
     def flush(self):
         pass

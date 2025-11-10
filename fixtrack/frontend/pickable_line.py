@@ -61,6 +61,9 @@ class PickableLine(PickableBase):
         # print(f"setting line data {self.count} times")
 
     def _set_data_false(self):
+        '''
+        loads each line with a unique color used for picking detection
+        '''
         if len(self._state.data) > 1:
             colors = self._pa.unique_colors(id(self)) / 255.0
             colors = np.repeat(colors, 2, axis=0)

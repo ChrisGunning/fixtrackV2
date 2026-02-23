@@ -180,6 +180,7 @@ class TopLevelControls(QWidget):
 
         vl = QVBoxLayout()
         self.vis_toggle_state = True
+        self.bbox_vis_toggle_state = True
         self._fname_save = None
 
         self.btn_add_track = QPushButton(self)
@@ -458,6 +459,7 @@ class TopLevelControls(QWidget):
                 track_widget.toggle_vis_btn(self.vis_toggle_state)
                 vis.append(idx)
         self.vis_toggle_state = not self.vis_toggle_state
+        self.bbox_vis_toggle_state = self.vis_toggle_state
         self._parent.canvas.visuals["tracks"].set_all_track_vis(vis, self.vis_toggle_state)
 
 
@@ -465,13 +467,15 @@ class TopLevelControls(QWidget):
         '''
         Toggles bbox visibility for all tracks
         '''
+        if not self._parent.canvas.tracks.contains_bboxes:
+            return
+
         vis = []
         for idx, track_widget in self._parent.track_edit_bar.track_widgets.items():
-            if self._parent.canvas.tracks[idx].visible == self.vis_toggle_state:
-                track_widget.toggle_vis_btn(self.vis_toggle_state)
+            if self._parent.canvas.visuals["tracks"].current_boxes[idx].visible == self.bbox_vis_toggle_state:
                 vis.append(idx)
-        self.vis_toggle_state = not self.vis_toggle_state
-        self._parent.canvas.visuals["tracks"].set_all_bbox_vis(vis, self.vis_toggle_state)
+        self.bbox_vis_toggle_state = not self.bbox_vis_toggle_state
+        self._parent.canvas.visuals["tracks"].set_all_bbox_vis(vis, self.bbox_vis_toggle_state)
 
     def cb_add_new_track(self, clicked):
         """

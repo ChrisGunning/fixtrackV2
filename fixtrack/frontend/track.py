@@ -80,6 +80,7 @@ class TrackCollectionVisual(VisualCollection):
         )
         self.visuals["markers"].sig_point_clicked.connect(self.slot_marker_clicked)
 
+
         #segments connecting (x, y) markers?
         self.visuals["traces"] = VisualWrapper(
             scene.visuals.Line(
@@ -223,19 +224,16 @@ class TrackCollectionVisual(VisualCollection):
         if frame_num is not None:
              #highlighting marker / dot on current frame
 
-            #TODO: calls to set_data are very expensive just for a single visual update.
+            # #TODO: calls to set_data are very expensive just for a single visual update.
             self.visuals["markers"].set_selected(frame_num)
             self.visuals["markers"].set_data(self.pos)
-            self.visuals["headings"].set_data(self.vec)
-            self.visuals["traces"].visual.set_data(pos=self.seg, color=self.cmap_seg_func(self.seg))
-            
+
             if self.tracks.contains_bboxes:
                 self.draw_bboxes(frame_num)
 
-        # print("")
 
         end = time.time()
-        # print(f"on_frame_change took: {end - start:.4f} seconds")
+        print(f"on_frame_change took: {end - start:.4f} seconds")
 
 
 
@@ -253,7 +251,7 @@ class TrackCollectionVisual(VisualCollection):
         self.on_frame_change(draw_bboxes=False)
 
 
-    def set_all_track_visibilities(self, indices, vis):
+    def set_all_track_vis(self, indices, vis):
         """
         Sets the visibility state for specificed tracks
 
@@ -269,6 +267,18 @@ class TrackCollectionVisual(VisualCollection):
             if self.tracks.contains_bboxes:
                 self.current_boxes[i].visible = vis
         self.on_frame_change(draw_bboxes=False)
+    
+    
+    def set_all_bbox_vis(self, indices, vis):
+        '''
+        Sets visibility for all bboxes to vis (if dataset contains bboxes)
+        '''
+        self.force_display_all = vis
+
+        for i in indices:
+            if self.tracks.contains_bboxes:
+                self.current_boxes[i].visible = vis
+        self.on_frame_change()
 
 
     def track_address_from_vec_idx(self, vec_idx):
@@ -396,7 +406,6 @@ class TrackCollectionVisual(VisualCollection):
 
 
         print("marker for track: " + str(idx_track) + " clicked")
-        print("from slot_marker_clicked, num box objects: " + str(len(self.current_boxes)))
 
          #bbox resize markers visible for the selected track
         if self.tracks.contains_bboxes and self.selected_track != idx_track and idx_track < len(self.current_boxes):

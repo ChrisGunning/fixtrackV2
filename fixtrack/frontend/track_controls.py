@@ -198,6 +198,14 @@ class TopLevelControls(QWidget):
         hl1.addWidget(self.btn_toggle_vis)
         self.buttons.append(self.btn_toggle_vis)
 
+        self.btn_toggle_bbox_vis = QPushButton(self)
+        self.btn_toggle_bbox_vis.setToolTip("Show/hide bbox for all tracks")
+        self.btn_toggle_bbox_vis.setIcon(QtGui.QIcon(QtGui.QPixmap(self.fname_eye)))
+        self.btn_toggle_bbox_vis.clicked.connect(self.cb_toggle_box_vis)
+        self.btn_toggle_bbox_vis.setFocusPolicy(QtCore.Qt.NoFocus)
+        hl1.addWidget(self.btn_toggle_bbox_vis)
+        self.buttons.append(self.btn_toggle_bbox_vis)
+
         self.btn_save_tracks = ShiftPushbutton(self)
         self.btn_save_tracks.setToolTip("Save tracks to H5 file Ctrl+S")
         self.btn_save_tracks.setIcon(QtGui.QIcon(QtGui.QPixmap(self.fname_save)))
@@ -305,7 +313,7 @@ class TopLevelControls(QWidget):
         self.btn_link.click()
 
         #remove bbox
-        if linked:
+        if linked and self._parent.canvas.tracks.contains_bboxes:
             print('removed bbox')
             self._parent.canvas.visuals["tracks"].remove_bbox()
 
@@ -450,7 +458,20 @@ class TopLevelControls(QWidget):
                 track_widget.toggle_vis_btn(self.vis_toggle_state)
                 vis.append(idx)
         self.vis_toggle_state = not self.vis_toggle_state
-        self._parent.canvas.visuals["tracks"].set_all_track_visibilities(vis, self.vis_toggle_state)
+        self._parent.canvas.visuals["tracks"].set_all_track_vis(vis, self.vis_toggle_state)
+
+
+    def cb_toggle_box_vis(self, clicked):
+        '''
+        Toggles bbox visibility for all tracks
+        '''
+        vis = []
+        for idx, track_widget in self._parent.track_edit_bar.track_widgets.items():
+            if self._parent.canvas.tracks[idx].visible == self.vis_toggle_state:
+                track_widget.toggle_vis_btn(self.vis_toggle_state)
+                vis.append(idx)
+        self.vis_toggle_state = not self.vis_toggle_state
+        self._parent.canvas.visuals["tracks"].set_all_bbox_vis(vis, self.vis_toggle_state)
 
     def cb_add_new_track(self, clicked):
         """

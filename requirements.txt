@@ -29,6 +29,7 @@ numpy==1.19.2
 numpy-quaternion==2020.9.5.14.42.2
 opencv-python-headless==4.4.0.44
 packaging==20.4
+pandas=1.1.5
 parso==0.7.1
 pbr==5.5.0
 pexpect==4.8.0

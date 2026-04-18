@@ -42,24 +42,17 @@ class PlayerHeadWidget(QtWidgets.QWidget):
     fname_skip_ahead = os.path.join(os.path.dirname(__file__), "icons", "skip-forward.svg")
     fname_skip_back = os.path.join(os.path.dirname(__file__), "icons", "skip-back.svg")
     fname_pause = os.path.join(os.path.dirname(__file__), "icons", "pause.svg")
+    fname_backwards = os.path.join(os.path.dirname(__file__), "icons", "chevrons-left.svg")
+    fname_forwards = os.path.join(os.path.dirname(__file__), "icons", "chevrons-right.svg")
 
-    
-    def __init__(self, parent, video_reader, range_slider=True):
-        """
-        Initializes the playback and navigation controls.
-
-        Args:
-            parent (VideoWidget): Parent GUI container.
-            video_reader (VideoReader): Provides video metadata (fps, num_frames).
-            range_slider (bool): Whether to include the playback range slider.
-        """
-
+    def __init__(self, parent, video_reader, range_slider=True, dual_video_reader=None):
         QtWidgets.QWidget.__init__(self, parent)
 
         self.dt = 1.0 / video_reader.fps
         self._playing = False
 
         self.video_reader = video_reader
+        self.dual_video_reader = dual_video_reader
 
         self._ids = [i for i in range(self.video_reader.num_frames)]
 
@@ -83,22 +76,32 @@ class PlayerHeadWidget(QtWidgets.QWidget):
             QtWidgets.QSizePolicy.Minimum, QtWidgets.QSizePolicy.Minimum
         )
 
-        nextButton = QtWidgets.QToolButton(self.parent())
-        nextButton.setIcon(QtGui.QIcon(QtGui.QPixmap(self.fname_skip_ahead)))
-        nextButton.clicked.connect(self.cb_last)
-        nextButton.setToolTip("Skip to last frame")
+        self.nextButton = QtWidgets.QToolButton(self.parent())
+        self.nextButton.setIcon(QtGui.QIcon(QtGui.QPixmap(self.fname_skip_ahead)))
+        self.nextButton.clicked.connect(self.cb_last)
+        self.nextButton.setToolTip("Skip to last frame")
 
-        prevButton = QtWidgets.QToolButton(self.parent())
-        prevButton.setIcon(QtGui.QIcon(QtGui.QPixmap(self.fname_skip_back)))
-        prevButton.clicked.connect(self.cb_first)
-        prevButton.setToolTip("Skip to first frame")
+        self.prevButton = QtWidgets.QToolButton(self.parent())
+        self.prevButton.setIcon(QtGui.QIcon(QtGui.QPixmap(self.fname_skip_back)))
+        self.prevButton.clicked.connect(self.cb_first)
+        self.prevButton.setToolTip("Skip to first frame")
+
+        self.forwardButton = QtWidgets.QToolButton(self.parent())
+        self.forwardButton.setIcon(QtGui.QIcon(QtGui.QPixmap(self.fname_forwards)))
+        self.forwardButton.clicked.connect(self.cb_forward)
+        self.forwardButton.setToolTip("+5 frames")
+
+        self.backButton = QtWidgets.QToolButton(self.parent())
+        self.backButton.setIcon(QtGui.QIcon(QtGui.QPixmap(self.fname_backwards)))
+        self.backButton.clicked.connect(self.cb_back)
+        self.backButton.setToolTip("-5 frames")
 
         self.play_slider = QtWidgets.QSlider(QtCore.Qt.Horizontal)
         self.play_slider.setRange(0, self.num_frames - 1)
         self.play_slider.sliderMoved.connect(self.cb_play_slider)
         self.play_slider.sliderReleased.connect(self.cb_play_slider)
         self.play_slider.setFocusPolicy(QtCore.Qt.NoFocus)
-        self.play_slider.setTickPosition(QtWidgets.QSlider.TicksBothSides)
+        # self.play_slider.setTickPosition(QtWidgets.QSlider.TicksBothSides)
 
         if range_slider:
             self.range_slider = RangeSlider(parent=self, other=self.play_slider)
@@ -123,14 +126,23 @@ class PlayerHeadWidget(QtWidgets.QWidget):
         lh = QtWidgets.QHBoxLayout()
         lv = QtWidgets.QVBoxLayout()
 
-        lh.addWidget(self.frame_text)
-        lh.addWidget(prevButton)
+        if not self.dual_video_reader:
+            lh.addWidget(self.frame_text)
+
+        if self.dual_video_reader:
+            lh.addStretch()
+
+        lh.addWidget(self.prevButton)
+        lh.addWidget(self.backButton)
         lh.addWidget(self.play_button)
-        lh.addWidget(nextButton)
+        lh.addWidget(self.forwardButton)
+        lh.addWidget(self.nextButton)
         lh.addWidget(self.rate_box)
         lh.addStretch()
         lv.addLayout(lh)
-        lv.addWidget(self.play_slider)
+
+        if not self.dual_video_reader:
+            lv.addWidget(self.play_slider)
 
         if range_slider:
             lv.addWidget(self.range_slider)
@@ -144,7 +156,7 @@ class PlayerHeadWidget(QtWidgets.QWidget):
     def cb_last(self):
         """Jump to the last frame and stop playback."""
         self.cb_stop()
-        self.cb_play_slider(self._ids[-1])
+        self.cb_play_slider(self._ids[self._idx_sel_b])
         self.play_slider.blockSignals(True)
         self.play_slider.setValue(self.frame_num)
         self.play_slider.blockSignals(False)
@@ -152,7 +164,19 @@ class PlayerHeadWidget(QtWidgets.QWidget):
     def cb_first(self):
         """Jump to the first frame and stop playback."""
         self.cb_stop()
-        self.cb_play_slider(self._ids[0])
+        self.cb_play_slider(self._ids[self._idx_sel_a])
+        self.play_slider.blockSignals(True)
+        self.play_slider.setValue(self.frame_num)
+        self.play_slider.blockSignals(False)
+
+    def cb_back(self):
+        self.cb_play_slider(self._ids[max(0, self.frame_num - 10)])
+        self.play_slider.blockSignals(True)
+        self.play_slider.setValue(self.frame_num)
+        self.play_slider.blockSignals(False)
+
+    def cb_forward(self):
+        self.cb_play_slider(self._ids[min(self.frame_num + 10, len(self._ids) - 1)])
         self.play_slider.blockSignals(True)
         self.play_slider.setValue(self.frame_num)
         self.play_slider.blockSignals(False)
@@ -179,16 +203,11 @@ class PlayerHeadWidget(QtWidgets.QWidget):
         if resize:
             resize_frame_text_to_fit(self)
 
-    def cb_play_slider(self, frame_num=None):
-        """
-        Sets the frame based on the slider value.
-
-        Args:
-            frame_num (int, optional): Frame number to set; uses slider value if None.
-        """
-
+    def cb_play_slider(self, frame_num=None, render_frame=False):
         if frame_num is None:
             frame_num = self.play_slider.value()
+
+        frame_num = min(frame_num, len(self._ids) - 1)
         self.cb_stop()
         self.set_frame_num(frame_num)
 

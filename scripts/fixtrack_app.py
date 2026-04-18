@@ -16,6 +16,9 @@ if ipython is not None:
 #Retrieve user arguments in form: video_name --track track_name
 parser = argparse.ArgumentParser()
 parser.add_argument("video", type=str, help="Video file name")
+parser.add_argument(
+    "--video2", type=str, default=None, help="Video file name for second video"
+)
 parser.add_argument("--track", type=str, default=None, help="Track H5 file name if one exists")
 parser.add_argument(
     "--no-range-slider", action="store_true", help="Don't create a selection range slider"
@@ -25,7 +28,6 @@ args = parser.parse_args()
 
 app = QApplication(sys.argv)
 
-#initialize GUI with user arguments
-main_win = FixtrackWindow(args.video, args.track, not args.no_range_slider)
+main_win = FixtrackWindow(args.video, args.video2, args.track, not args.no_range_slider)
 main_win.show()
 sys.exit(app.exec_())

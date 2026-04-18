@@ -23,6 +23,7 @@ class TrackCollectionVisual(VisualCollection):
         super(TrackCollectionVisual,
               self).__init__(parent=parent, enabled=enabled, visible=visible)
         self.tracks = tracks
+        self.show_pos = True
 
         pos, seg, vec = self.get_data()
         self.visuals["headings"] = PickableLine(
@@ -104,7 +105,6 @@ class TrackCollectionVisual(VisualCollection):
     def cmap_pos_func(self, data, alpha=0.5):
         c = color_from_index(range(self.tracks.num_tracks))
         c_ctrl = [0.0, 1.0, 0.0, alpha]
-        c[:, 3] = alpha
         assert (len(data) % self.tracks.num_tracks) == 0
         chunk_len = len(data) // self.tracks.num_tracks
         colors = np.empty((len(data), 4))
@@ -113,13 +113,29 @@ class TrackCollectionVisual(VisualCollection):
             self.visuals["markers"].multi_sel = []
         for track_idx, track in enumerate(self.tracks):
             frame_idx = track_idx * chunk_len
-            colors[frame_idx:frame_idx + chunk_len] = c[track_idx]
-            colors[np.where(track["ctr"])[0] + frame_idx] = c_ctrl
+            colors[frame_idx:frame_idx + chunk_len][:, 3] *= track["det"] * int(self.show_pos)
+            colors[frame_idx:frame_idx + chunk_len][:, 3] *= track.visible
+            colors[frame_idx:frame_idx + chunk_len, :3] = c[track_idx, :3]
+            ctrl_points = np.where(track["ctr"])[0] + frame_idx
+            colors[ctrl_points, :3] = c_ctrl[:3]
+            colors[ctrl_points, 3] = c_ctrl[3] * track.visible
+
+            current_frame = self.frame_num
+            visible_frames = [
+                max(0, current_frame - 2),
+                max(0, current_frame - 1),
+                min(chunk_len - 1, current_frame + 1),
+                min(chunk_len - 1, current_frame + 2), current_frame
+            ]
+
+            for f in visible_frames:
+                if 0 <= f < chunk_len and track["det"][f] > 0 and track.visible:
+                    marker_idx = frame_idx + f
+                    colors[marker_idx, 3] = track["det"][f] * track.visible
+
             if "markers" in self.visuals:
                 self.visuals["markers"].multi_sel.append(frame_idx + self.frame_num)
-            det = track["det"]
-            colors[frame_idx:frame_idx + chunk_len][:, 3] *= det
-            colors[frame_idx:frame_idx + chunk_len][:, 3] *= track.visible
+
             if hasattr(self._parent._parent, "player_controls"):
                 idx_a = self._parent._parent.player_controls._idx_sel_a
                 idx_b = self._parent._parent.player_controls._idx_sel_b + 1

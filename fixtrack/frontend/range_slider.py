@@ -143,15 +143,21 @@ class RangeSlider(QtWidgets.QWidget):
             if pos <= self.second_position:
                 self.first_position = pos
                 self.update()
-                self.sliderMoved.emit(self.first_position, self.second_position, 0)
                 return
 
         if (self._second_sc == self.range_slider_handle):
             if (pos >= self.first_position) or (self.second_position == 1):
                 self.second_position = pos
                 self.update()
-                self.sliderMoved.emit(self.first_position, self.second_position, 1)
                 return
+
+    def mouseReleaseEvent(self, event: QtGui.QMouseEvent):
+        if self._first_sc == self.range_slider_handle:
+            self.sliderMoved.emit(self.first_position, self.second_position, 0)
+        elif self._second_sc == self.range_slider_handle:
+            self.sliderMoved.emit(self.first_position, self.second_position, 1)
+        self._first_sc = QStyle.SC_None
+        self._second_sc = QStyle.SC_None
 
     def sizeHint(self):
         """ override """

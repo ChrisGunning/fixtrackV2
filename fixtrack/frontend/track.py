@@ -404,33 +404,17 @@ class TrackCollectionVisual(VisualCollection):
         self._parent._parent.top_level_ctrls.cb_marker_clicked(idx_track, idx_frame, modifiers)
         self._parent._parent.player_controls.set_frame_num(idx_frame)
 
-
-        print("marker for track: " + str(idx_track) + " clicked")
-
          #bbox resize markers visible for the selected track
         if self.tracks.contains_bboxes and self.selected_track != idx_track and idx_track < len(self.current_boxes):
             if self.selected_track is not None and self.selected_track < len(self.current_boxes):
                 self.current_boxes[self.selected_track].control_points.visible(False)
-            self.selected_track = idx_track
+        
+        self.selected_track = idx_track
 
+        if self.tracks.contains_bboxes:
             if self.selected_track < len(self.current_boxes):
                 self.current_boxes[self.selected_track].control_points.visible(True)
             self.draw_bboxes(idx_frame) #forced redraw for control points
-
-        # # #bbox resize markers visible for the selected track
-        # if self.tracks.contains_bboxes and self.selected_track != idx_track:
-        #     if self.selected_track is not None and self.selected_track < len(self.current_boxes):
-        #         print("from slot_marker_clicked, num box objects: " + str(len(self.current_boxes)))
-        #         print("from slot_marker_clicked, self.selected_track: " + str(self.selected_track))
-        #         self.current_boxes[self.selected_track].control_points.visible(False)
-        #     self.selected_track = idx_track
-
-        #     print("marker clicked")
-        #     print("self.selected_track: " + str(self.selected_track))
-
-        #     if self.selected_track < len(self.current_boxes):
-        #         self.current_boxes[self.selected_track].control_points.visible(True)
-        #     self.draw_bboxes(idx_frame) #forced redraw for control points
 
 
     def marker_clicked(self, click_pos, cp_container, radius = 5):

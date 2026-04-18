@@ -66,11 +66,17 @@ class PickableMarkers(PickableBase):
         super(PickableMarkers, self)._highlight()
 
     def _highlight_selected(self):
+        """
+        Enlarges marker at the current frame
+                
+        :param self: Description
+        """
         super(PickableMarkers, self)._highlight_selected()
         cfg = self._cfg
         state = self._state
         if (state.idx_selected >= 0) and cfg.pickable:
             state.sizes[self._selected_idxs()] = cfg.vis_args["size"] * cfg.select_scale
+            pass
 
     def _highlight_hovered(self):
         super(PickableMarkers, self)._highlight_hovered()

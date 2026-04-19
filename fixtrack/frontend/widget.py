@@ -126,7 +126,7 @@ class VideoWidget(QtWidgets.QWidget):
         self.setLayout(hl1)
 
         self.player_controls.sig_frame_change.connect(self.canvas.on_frame_change)
-        self.player_controls.sig_frame_change.emit(0)
+        self.player_controls.sig_frame_change.emit(0, True)
 
         if fname_video2:
             self.player_controls2.sig_frame_change.connect(self.canvas2.on_frame_change)
@@ -162,9 +162,6 @@ class VideoWidget(QtWidgets.QWidget):
     def idx_selected(self):
         """
         Returns the index of the currently selected track.
-
-        Returns:
-            int: Index of the selected track.
         """
         return self.track_edit_bar.idx_selected()
 

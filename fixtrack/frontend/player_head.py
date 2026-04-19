@@ -36,7 +36,7 @@ class PlayerHeadWidget(QtWidgets.QWidget):
         timer (QTimer): Timer to trigger frame advancement during playback.
     """
 
-    sig_frame_change = QtCore.pyqtSignal(int)
+    sig_frame_change = QtCore.pyqtSignal(int, bool)
 
     fname_play = os.path.join(os.path.dirname(__file__), "icons", "play.svg")
     fname_skip_ahead = os.path.join(os.path.dirname(__file__), "icons", "skip-forward.svg")
@@ -327,7 +327,7 @@ class PlayerHeadWidget(QtWidgets.QWidget):
         self.play_slider.setValue(self.frame_num)
         self.play_slider.blockSignals(False)
         if emit:
-            self.sig_frame_change.emit(self._frame_idx)
+            self.sig_frame_change.emit(self._frame_idx, False) #emits to canvas.on_frame_change
 
     def set_frame_idx(self, n, emit=True):
         """

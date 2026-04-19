@@ -147,24 +147,6 @@ class TopLevelControls(QWidget):
     This widget provides global control buttons for manipulating tracks,
     including actions like saving, linking, breaking, undo/redo, toggling
     visibility, heading estimation, and interpolation direction.
-
-    Attributes:
-        _parent (VideoWidget): Reference to the parent VideoWidget.
-        buttons (list): All buttons for unified enable/disable behavior.
-        last_addr (tuple or None): (track_idx, frame_idx) of the first point selected for linking.
-        vis_toggle_state (bool): Toggles global visibility of tracks.
-        _fname_save (str or None): Last-used filename when saving track data.
-
-        btn_add_track (QPushButton): Add a new track.
-        btn_toggle_vis (QPushButton): Toggle visibility of all tracks.
-        btn_save_tracks (ShiftPushbutton): Save track data (.h5), with Shift-click override.
-        btn_undo (QPushButton): Undo the last action on selected track.
-        btn_redo (QPushButton): Redo the last undone action.
-        btn_heading (QPushButton): Toggle visibility of heading vectors.
-        btn_interp_l (QPushButton): Interpolate backward.
-        btn_interp_r (QPushButton): Interpolate forward.
-        btn_link (QPushButton): Begin or confirm linking of two track points.
-        btn_break (QPushButton): Break a selected track at the current frame.
     """
     fname_add = os.path.join(os.path.dirname(__file__), "icons", "plus.svg")
     fname_eye = os.path.join(os.path.dirname(__file__), "icons", "eye.svg")
@@ -199,6 +181,7 @@ class TopLevelControls(QWidget):
 
         vl = QVBoxLayout()
         self.vis_toggle_state = True
+        self.bbox_vis_toggle_state = True
         self._fname_save = None
 
         self.btn_add_track = QPushButton(self)
@@ -216,6 +199,14 @@ class TopLevelControls(QWidget):
         self.btn_toggle_vis.setFocusPolicy(QtCore.Qt.NoFocus)
         hl1.addWidget(self.btn_toggle_vis)
         self.buttons.append(self.btn_toggle_vis)
+
+        self.btn_toggle_bbox_vis = QPushButton(self)
+        self.btn_toggle_bbox_vis.setToolTip("Show/hide bbox for all tracks")
+        self.btn_toggle_bbox_vis.setIcon(QtGui.QIcon(QtGui.QPixmap(self.fname_eye)))
+        self.btn_toggle_bbox_vis.clicked.connect(self.cb_toggle_box_vis)
+        self.btn_toggle_bbox_vis.setFocusPolicy(QtCore.Qt.NoFocus)
+        hl1.addWidget(self.btn_toggle_bbox_vis)
+        self.buttons.append(self.btn_toggle_bbox_vis)
 
         self.btn_save_tracks = ShiftPushbutton(self)
         self.btn_save_tracks.setToolTip("Save tracks to H5 file Ctrl+S")
@@ -331,10 +322,16 @@ class TopLevelControls(QWidget):
         assert self.last_addr is not None, "No previously selected track point"
 
         print("Linking", self.last_addr[0], idx_track, "=>", self.last_addr[1], idx_frame)
-        self._parent.canvas.tracks.link_tracks(
+        linked = self._parent.canvas.tracks.link_tracks(
             self.last_addr[0], idx_track, self.last_addr[1], idx_frame
         )
-        self.btn_link.animateClick()
+        self.btn_link.click()
+
+        #remove bbox
+        if linked and self._parent.canvas.tracks.contains_bboxes:
+            print('removed bbox')
+            self._parent.canvas.visuals["tracks"].remove_bbox()
+
 
         self._parent.canvas.on_frame_change()
         self._parent.setup_track_edit_bar(select_last=False)
@@ -388,7 +385,12 @@ class TopLevelControls(QWidget):
 
         idx_track = self._parent.idx_selected()
         idx_frame = self._parent.canvas.frame_num
-        self._parent.canvas.tracks.break_track(idx_track, idx_frame)
+
+
+        broken = self._parent.canvas.tracks.break_track(idx_track, idx_frame)
+        #add new bbox object
+        if self._parent.canvas.tracks.contains_bboxes and broken:
+            self._parent.canvas.visuals["tracks"].add_bbox()
         self._parent.canvas.on_frame_change()
         self._parent.setup_track_edit_bar(select_last=False)
         self._parent.canvas.on_frame_change()
@@ -459,20 +461,35 @@ class TopLevelControls(QWidget):
         """
 
         self._parent.canvas.visuals["tracks"].visuals["headings"].visible = checked
-    
-    
+
     def cb_toggle_vis(self, clicked):
         """
-        Toggles the visibility of all tracks in the GUI by clicking each toggle button.
-
-        Args:
-            clicked (bool): Unused; signal parameter from button.
+        Toggles visibility of all tracks
         """
 
-        for idx, tw in self._parent.track_edit_bar.track_widgets.items():
-            if tw.btn_visible.isChecked() != self.vis_toggle_state:
-                tw.btn_visible.animateClick()
-        self.vis_toggle_state ^= True
+        vis = []
+        for idx, track_widget in self._parent.track_edit_bar.track_widgets.items():
+            if self._parent.canvas.tracks[idx].visible == self.vis_toggle_state:
+                track_widget.toggle_vis_btn(self.vis_toggle_state)
+                vis.append(idx)
+        self.vis_toggle_state = not self.vis_toggle_state
+        self.bbox_vis_toggle_state = self.vis_toggle_state
+        self._parent.canvas.visuals["tracks"].set_all_track_vis(vis, self.vis_toggle_state)
+
+
+    def cb_toggle_box_vis(self, clicked):
+        '''
+        Toggles bbox visibility for all tracks
+        '''
+        if not self._parent.canvas.tracks.contains_bboxes:
+            return
+
+        vis = []
+        for idx, track_widget in self._parent.track_edit_bar.track_widgets.items():
+            if self._parent.canvas.visuals["tracks"].current_boxes[idx].visible == self.bbox_vis_toggle_state:
+                vis.append(idx)
+        self.bbox_vis_toggle_state = not self.bbox_vis_toggle_state
+        self._parent.canvas.visuals["tracks"].set_all_bbox_vis(vis, self.bbox_vis_toggle_state)
 
     def cb_add_new_track(self, clicked):
         """
@@ -483,6 +500,11 @@ class TopLevelControls(QWidget):
         """
 
         self._parent.canvas.tracks.add_track()
+
+        #call add_bbox in TrackCollectionVisual
+        if self._parent.canvas.tracks.contains_bboxes:
+            self._parent.canvas.visuals["tracks"].add_bbox()
+
         self._parent.canvas.on_frame_change()
         self._parent.setup_track_edit_bar(select_last=True)
         self._parent.mutated.emit(True)
@@ -861,6 +883,18 @@ class TrackEditItem(QGroupBox):
             self.btn_visible.setIcon(self.icon_eye_off)
         else:
             self.btn_visible.setIcon(self.icon_eye)
+    
+    def toggle_vis_btn(self, checked):
+        """
+        Toggles state of vis_btn without modifying track visibility. Used for improving performance
+        of showing/hiding all tracks at once.
+        """
+        self.btn_visible.setChecked(checked)
+        if checked:
+            self.btn_visible.setIcon(self.icon_eye_off)
+        else:
+            self.btn_visible.setIcon(self.icon_eye)
+
 
     def cb_btn_del(self, checked):
         """
@@ -870,7 +904,16 @@ class TrackEditItem(QGroupBox):
             checked (bool): Unused; included for compatibility with clicked signal.
         """
 
+        if self._parent._parent.canvas.tracks.num_tracks == 1:
+            print("cannot delete, must have at least 1 track")
+            return
+        
         print(f"Deleting track {self.index}")
+
+        #remove bbox for track self.index
+        if self._parent._parent.canvas.tracks.contains_bboxes:
+            self._parent._parent.canvas.visuals["tracks"].remove_bbox(self.index)
+        
         self._parent._parent.canvas.tracks.rem_track(self.index)
         self._parent._parent.canvas.on_frame_change()
         self._parent._parent.setup_track_edit_bar()

@@ -9,6 +9,9 @@ from fixtrack.common.utils import normalize_vecs
 DTYPE_TRACK_POINT = [
     ('pos', np.float64, 3),  # position vector
     ('vec', np.float64, 3),  # Heading vector
+
+    ('bbox', np.float64, 2), #bounding box
+
     ('det', np.bool),  # Detection flag
     ('ctr', np.bool),  # Control point boolean flag
 ]
@@ -24,8 +27,15 @@ class Track(object):
 
     default_vec = [1.0, 0.0, 0.0]
     default_vec = normalize_vecs(default_vec)
+    default_bbox = [0.0, 0.0]
 
-    def __init__(self, pos, vec=None, det=None, visible=True, undo_len=10):
+    def __init__(self, pos, vec=None, bbox=None, det=None, visible=True, undo_len=10):
+        '''
+        Initialies a Track object storing position and heading vector data
+
+        Position data is stored in a 2d array, where each row is a frame in the video,
+        and each column is (x, y, z) data.
+        '''
         n = len(pos)
         self.visible = visible
         self._data = np.zeros((n, ), dtype=DTYPE_TRACK_POINT)
@@ -38,6 +48,15 @@ class Track(object):
         else:
             self._data["vec"] = self.default_vec
 
+        self.contains_bbox = False
+        if bbox is not None:
+            self._data["bbox"] = bbox
+            self.contains_bbox = True
+        else:
+            self._data["bbox"] = self.default_bbox
+
+
+
         if det is not None:
             assert len(det) == n
             self._data["det"] = det
@@ -46,6 +65,9 @@ class Track(object):
         self._redo_queue = deque(maxlen=undo_len)
 
     def _valid_idx(self, idx):
+        '''
+        asserts idx is a valid frame index
+        '''
         assert (idx >= 0) and (idx < len(self)), f"Invalid frame index {idx}"
 
     def undo(self):
@@ -70,9 +92,11 @@ class Track(object):
 
     @undoable
     def add_det(self, idx, pos, vec=None, interp_l=False, interp_r=False, ctrl_pt=True):
+        #find nearest detections to the left and rights
         det_next = np.where(self["det"][idx + 1:])[0]
         det_prev = np.where(self["det"][idx - 1::-1])[0]
 
+        #attempt to interpolate heading vector
         if vec is None:
             if (len(det_prev) > 0) and (len(det_next) > 0) and interp_l and interp_r:
                 print("Two way interp")
@@ -86,25 +110,46 @@ class Track(object):
                 print("Interp from next")
                 vec = self["pos"][idx + det_next[0] + 1] - pos
             else:
-                print("Using default vec")
                 vec = Track.default_vec
             vec = normalize_vecs(vec)
 
         self._valid_idx(idx)
+
+        #set data at frame idx
         self["pos"][idx] = pos
         self["vec"][idx] = vec
         self["det"][idx] = True
 
+        if self.contains_bbox:
+            #copy existing dimensions forward
+            if len(det_prev) > 0:
+                prev_idx = idx - det_prev[0] - 1
+                self["bbox"][idx] = self["bbox"][prev_idx]
+            #elif copy existing dimensions backward
+            elif len(det_next) > 0:
+                next_idx = idx + det_next[0] + 1
+                self["bbox"][idx] = self["bbox"][next_idx]
+            #default bbox size (finalize)
+            else:
+                self["bbox"][idx] = [30, 300]
+
+        #interpolate pos, vec, and bbox to the right
         if interp_r and (idx < len(self)) and (len(det_next) > 0):
             det_next = idx + det_next[0] + 1
             self["det"][idx:det_next] = True
+            #np.linspace: evenly spaced numbers over a range
             self["pos"][idx:det_next] = np.linspace(
-                self["pos"][idx], self["pos"][det_next], det_next - idx
+                self["pos"][idx], self["pos"][det_next], det_next - idx, endpoint = False
             )
             self["vec"][idx:det_next] = np.linspace(
-                self["vec"][idx], self["vec"][det_next], det_next - idx
+                self["vec"][idx], self["vec"][det_next], det_next - idx, endpoint = False
             )
 
+            if self.contains_bbox:
+                print("interpolated right")
+                self["bbox"][idx:det_next] = self["bbox"][det_next]
+
+        #interpolate pos, vec, and bbox to the left
         if interp_l and (idx > 0) and (len(det_prev) > 0):
             det_prev = idx - det_prev[0] - 1
             self["det"][det_prev:idx + 1] = True
@@ -115,11 +160,19 @@ class Track(object):
                 self["vec"][det_prev], self["vec"][idx], idx - det_prev + 1
             )
 
+            if self.contains_bbox:
+                print("interpolated left")
+                self["bbox"][det_prev:idx+1] = self["bbox"][det_prev]
+
         self["vec"] = normalize_vecs(self["vec"])
 
         self.add_ctrl_pt(idx)
 
     def interp_between(self, idx_a, idx_b, det=True):
+        '''
+        linearly interpolates pos and vec data between frames idx_a and idx_b.
+        copies bbox data at idx_a forward between frames idx_a and idx_b
+        '''
         self["pos"][idx_a:idx_b] = np.linspace(
             self["pos"][idx_a], self["pos"][idx_b], idx_b - idx_a
         )
@@ -129,6 +182,11 @@ class Track(object):
         self["ctr"][idx_a:idx_b] = False
         self["det"][idx_a:idx_b] = det
 
+        #copy forward
+        self["bbox"][idx_a:idx_b] = self["bbox"][idx_a]
+
+
+        #mark idx_a and idx_b as control points
         self["ctr"][idx_a] = True
         self["ctr"][idx_b] = True
 
@@ -277,14 +335,21 @@ class Track(object):
 
 
 class TrackCollection(object):
+    '''
+    Stores and manages a list of Track objects
+    '''
     def __init__(self, tracks, undo_len=10):
         n = len(tracks)
         assert n > 0, "Must provide 1 or more tracks"
         n = len(tracks[0])
+        
+        self.contains_bboxes = False
         self.tracks = []
         for i, t in enumerate(tracks):
             ni = len(t)
             assert len(t) == n, f"Track {i} with len {ni} did not match track[0] with len {n}"
+            if t.contains_bbox:
+                self.contains_bboxes = True
             self.tracks.append(t)
 
     def _valid_idxs(self, idx_track, idx_frame):
@@ -316,7 +381,12 @@ class TrackCollection(object):
             n0 = self.num_frames
             assert n == self.num_frames, f"Track has wrong number of frames {n}, expected {n0}"
         else:
-            track = Track(pos=np.zeros((self.num_frames, 3)))
+            #init bbox data only when tracking bboxes
+            if self.contains_bboxes:
+                track = Track(pos=np.zeros((self.num_frames, 3)), bbox = np.zeros((self.num_frames, 2)))
+                # bbox = np.zeros((self.num_frames, 2))
+            else:
+                track = Track(pos=np.zeros((self.num_frames, 3)))
         self.tracks.append(track)
         return self.num_tracks - 1
 
@@ -325,46 +395,74 @@ class TrackCollection(object):
         self.tracks.pop(idx)
 
     def link_tracks(self, idx_a, idx_b, frame_a, frame_b):
+        '''
+        merges tracks idx_a and idx_b together
+        '''
         (frame_a, frame_b), (idx_a,
                              idx_b) = zip(*sorted(zip((frame_a, frame_b), (idx_a, idx_b))))
-
-        assert (idx_a >= 0) and (idx_a < self.num_tracks), f"Invalid track index {idx_a}"
-        assert (idx_b >= 0) and (idx_b < self.num_tracks), f"Invalid track index {idx_b}"
+        try:
+            assert (idx_a >= 0) and (idx_a < self.num_tracks), f"Invalid track index {idx_a}"
+            assert (idx_b >= 0) and (idx_b < self.num_tracks), f"Invalid track index {idx_b}"
+            assert (idx_a != idx_b), f"cannot link a track to itself"
+        except AssertionError as e:
+            print(f"Linking failed: {e}")
+            return False
 
         self.tracks[idx_a]["det"][frame_a:] = False
         self.tracks[idx_a]["ctr"][frame_a:] = False
         self.tracks[idx_b]["det"][:frame_b] = False
         self.tracks[idx_b]["ctr"][:frame_b] = False
 
-        tmp = self.tracks[idx_a].copy()
+        #copy over track b data
         self.tracks[idx_a][frame_b:] = self.tracks[idx_b][frame_b:]
-        self.tracks[idx_b][:frame_a] = tmp[:frame_a]
 
+        #interp between frames a and b
         if frame_a != frame_b:
             self.tracks[idx_a].interp_between(frame_a, frame_b)
 
         self.rem_track(idx_b)
-
-        return idx_b
+        return True
 
     def break_track(self, idx_track, idx_frame):
+        '''
+        breaks track idx_track at frame idx_frame into two separate tracks
+        '''
         msg = f"Invalid track index {idx_track}"
         assert (idx_track >= 0) and (idx_track < self.num_tracks), msg
 
         msg = f"Invalid frame index {idx_frame}"
         assert (idx_frame >= 0) and (idx_frame < self.num_frames), msg
 
+        #check if we are breaking on the boundary of a track
+        if idx_frame == 0:
+            det_prev = np.array([])
+        else:
+            det_prev = np.where(self.tracks[idx_track]["det"][idx_frame - 1::-1])[0]
+
+        if idx_frame == self.num_frames:
+            det_next = np.array([])
+        else:
+            det_next = np.where(self.tracks[idx_track]["det"][idx_frame + 1:])[0]
+        
+        if len(det_next) == 0 or len(det_prev) == 0:
+            print("cannot break track on boundary nodes")
+            return False
+        
+
         track_b = self.tracks[idx_track].copy()
 
         self.tracks[idx_track]["det"][idx_frame:] = False
         self.tracks[idx_track]["ctr"][idx_frame:] = False
         self.tracks[idx_track]["pos"][idx_frame:] = [0, 0, 0]
+        self.tracks[idx_track]["bbox"][idx_frame:] = [0, 0]
 
         track_b["det"][:idx_frame] = False
         track_b["ctr"][:idx_frame] = False
         track_b["pos"][:idx_frame] = [0, 0, 0]
+        track_b["bbox"][:idx_frame] = [0, 0]
 
         self.add_track(track_b)
+        return True
 
     @property
     def num_tracks(self):
@@ -379,3 +477,12 @@ class TrackCollection(object):
 
     def __setitem__(self, i, val):
         self.tracks[i] = val
+    
+
+    @property
+    def num_visible_tracks(self):
+        count = 0
+        for track in self.tracks:
+            if track.visible:
+                count += 1
+        return count

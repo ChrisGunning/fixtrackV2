@@ -31,6 +31,13 @@ class TrackIO(object):
             h5["HY"][()] = np.vstack([tk["vec"][:, 1] for tk in tracks])
             h5["det"][()] = np.vstack([tk["det"] for tk in tracks])
 
+            if tracks.contains_bboxes:
+                h5.create_dataset("Width", shape=(num_tracks, num_frames), dtype=np.float32)
+                h5.create_dataset("Height", shape=(num_tracks, num_frames), dtype=np.float32)
+                h5["Width"][()] = np.vstack([tk["bbox"][:, 0] for tk in tracks])
+                h5["Height"][()] = np.vstack([tk["bbox"][:, 1] for tk in tracks])
+
+
     @staticmethod
     def is_h5_file(fname):
         """Check if the file is an h5 file based on extension"""
@@ -76,15 +83,29 @@ class TrackIO(object):
         fname = utils.expand_path(fname)
 
         assert os.path.exists(fname), f"Path '{fname}' does not exist."
+
+
+        contains_bboxes = False
         with h5py.File(fname, mode="r") as h5:
             x, y = h5["X"][()], h5["Y"][()]
             xh, yh = h5["HX"][()], h5["HY"][()]
 
             assert x.shape == y.shape, "Different length x and y components in track"
             num_tracks, num_frames = x.shape
-
             assert xh.shape == yh.shape, "Different length x and y heading components in track"
             assert x.shape == xh.shape, "Num heading vecs does not match num position vecs"
+
+
+            if "Width" in h5 and "Height" in h5:
+                w, h = h5["Width"][()], h5["Height"][()]
+                assert w.shape == h.shape, "Width and Height data are of different lenghts"
+                assert x.shape == w.shape, "Num bounding boxes does not match num position vecs"
+                contains_bboxes = True
+
+            # else:
+            #     w = np.zeros(x.shape)
+            #     h = np.zeros(y.shape)
+
 
             print(f"Loaded track file with {num_frames} frames and {num_tracks} tracks")
 
@@ -105,9 +126,19 @@ class TrackIO(object):
                         np.zeros((num_frames, 1)),
                     ]
                 )
+
+                bbox = None
+                if contains_bboxes:
+                    bbox = np.hstack(
+                        [
+                            w[track_idx, :].reshape(-1, 1),
+                            h[track_idx, :].reshape(-1, 1),
+                        ]
+                    )
+
                 vec = utils.normalize_vecs(vec)
                 det = d[track_idx]
-                tracks.append(tk.Track(pos=pos, vec=vec, det=det))
+                tracks.append(tk.Track(pos=pos, vec=vec, bbox=bbox, det=det))
         return tk.TrackCollection(tracks)
 
     @staticmethod

@@ -149,7 +149,7 @@ class VisualCollection(QtCore.QObject):
         self._parent = parent
         self._cfg = VisualCollection.Config(enabled=enabled, visible=visible)
         # self._key = 0
-        self.visuals = {}
+        self.visuals = {} #stores markers, segments, heading vectors
 
         # Needs to be called at the end of __init__ in any subclasses
         self._sync_visuals()

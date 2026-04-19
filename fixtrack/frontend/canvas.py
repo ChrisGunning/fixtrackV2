@@ -10,30 +10,36 @@ from fixtrack.frontend.visual_wrapper import VisualCollection, VisualWrapper
 from fixtrack.frontend.track_merger import TrackMergeDialog
 
 
-'''
-Extends vispy.scene.SceneCanvas class
+import time
 
-Attributes:
-    _parent (VideoWidget): parent GUI component
-    view ():
-    visuals (dict): 
-'''
+
 class CanvasBase(scene.SceneCanvas):
+    '''
+    Extends vispy.scene.SceneCanvas class
+
+    Attributes:
+        _parent (VideoWidget): parent GUI component
+        view ():
+        visuals (dict): 
+    '''
     def __init__(self, parent, **kwargs):
         scene.SceneCanvas.__init__(self, keys="interactive", **kwargs)
         self.unfreeze()
         self.view = self.central_widget.add_view()
         self.visuals = {}
         self._parent = parent
+
+        self.dragging = False
+
         self.freeze()
 
-    '''
     
-    Args:
-        vis (either VisualCollection or VisualWrapper??):
-    '''
     @staticmethod
     def _picking_vis_setup(vis, restore=False):
+        '''
+        If restore False, replaces normal coloring data for visuals with unique colors
+        If restore is True, restores original color data
+        '''
         if restore:
             vis.picking_vis_restore()
             vis.set_data()
@@ -41,12 +47,7 @@ class CanvasBase(scene.SceneCanvas):
             vis.picking_vis_set()
             vis.set_data_false()
 
-    '''
-    Recursive calls through vis_dict items (eventually calling _picking_vis_setup...?)
-
-    Args:
-        vis_dict (dict, list, VisualCollection, VisualWrapper): 
-    '''
+    
     @staticmethod
     def picking_vis_setup(vis_dict, restore=False):
         for name, visual in vis_dict.items():
@@ -60,13 +61,14 @@ class CanvasBase(scene.SceneCanvas):
             elif isinstance(visual, VisualWrapper):
                 CanvasBase._picking_vis_setup(visual, restore)
 
-    '''
-
-    Args:
-        vis (VisualWrapper / VisualCollection?): The visual object to potentially hide
-    '''
+    
     @staticmethod
     def _hide_visual(vis):
+        '''
+
+        Args:
+            vis (VisualWrapper / VisualCollection?): The visual object to potentially hide
+        '''
         # Don't hide visual if it is pickable
         pickable = True
         if getattr(vis, "pickable", None) is not None:
@@ -80,6 +82,9 @@ class CanvasBase(scene.SceneCanvas):
 
     @staticmethod
     def _hide_visuals(vis_dict):
+        
+        # print("calling _hide_visuals in CanvasBase")
+
         state = {}
         for name, visual in vis_dict.items():
             if isinstance(visual, dict):
@@ -110,32 +115,44 @@ class CanvasBase(scene.SceneCanvas):
             else:
                 assert False, "Object must have visible attribute" + str(type(visual))
 
-    def render_picking(self, event):
-        self.picking_vis_setup(self.visuals, restore=False)
+    def render_pick_region(self, event):
         pos = self.transforms.canvas_transform.map(event.pos)
         rad = 5
         img = self.render(
             (pos[0] - rad, pos[1] - rad, rad * 2 + 1, rad * 2 + 1), bgcolor=(0, 0, 0, 0)
         )
-        self.picking_vis_setup(self.visuals, restore=True)
+
         return img
 
-'''
-Extends CanvasBase
+    def render_picking(self, event):
+        '''
+        Temporary sets each visual to a unique color to allow GUI to detect what was clicked.
+        Restores visuals to their original appearance
+        '''
+        start_time = time.time()
+        self.picking_vis_setup(self.visuals, restore=False) #switches visuals into picking mode (unique colors, allows us to detect what was clicked)?
+        img = self.render_pick_region(event)
+        self.picking_vis_setup(self.visuals, restore=True) #restores visuals to original appearance
+        end_time = time.time()
+        # print(f"render_picking took {end_time - start_time:.6f} seconds")
+        return img
 
-Attributes:
-    _parent (): parent GUI component
-    video (VideoReader):
-    fname_tracks (str):
-    fname_video (str):
-    frame_num (int):
-    view.camera (vispy.scene.PanZoomCamera): 
-    ts (time): 
-
-    other notes:
-        view.camera, visuals dict are inherited
-'''
 class VideoCanvas(CanvasBase):
+    '''
+    Extends CanvasBase
+
+    Attributes:
+        _parent (): parent GUI component
+        video (VideoReader):
+        fname_tracks (str):
+        fname_video (str):
+        frame_num (int):
+        view.camera (vispy.scene.PanZoomCamera): 
+        ts (time): 
+
+        other notes:
+            view.camera, visuals dict are inherited
+    '''
     def __init__(self, parent, fname_video=None, fname_track=None, **kwargs):
         super().__init__(parent, **kwargs)
 
@@ -175,6 +192,7 @@ class VideoCanvas(CanvasBase):
 
         self.freeze()
 
+
     def mutated(self, b=True):
         self._parent.mutated.emit(b)
 
@@ -184,18 +202,12 @@ class VideoCanvas(CanvasBase):
         else:
             self.view.camera = "panzoom"
 
-    def on_frame_change(self, frame_num=None):
-        # start_time = time.time()
+    def on_frame_change(self, frame_num=None, refresh_data = True):
+        #update img to frame_num
         if frame_num is not None:
             self.frame_num = frame_num
-
-        # frame_fetch_start = time.time()
-        img = self.video.get_frame(self.frame_num)
-        # frame_fetch_end = time.time()
-
-        # set_data_start = time.time()
-        self.visuals["img"].set_data(img)
-        # set_data_end = time.time()
+            img = self.video.get_frame(self.frame_num)
+            self.visuals["img"].set_data(img)
 
         # camera_start = time.time()
         if not isinstance(self.view.camera, scene.cameras.PanZoomCamera):
@@ -206,29 +218,10 @@ class VideoCanvas(CanvasBase):
                 vec = self.tracks[idx_track]["vec"][self.frame_num]
                 ang = np.arctan2(vec[1], vec[0])
                 self.view.camera.azimuth = ang * 180.0 / np.pi - 90.0
-        # camera_end = time.time()
-
-        # update_start = time.time()
         self.update()
-        # update_end = time.time()
 
-        # tracks_start = time.time()
-        self.visuals["tracks"].on_frame_change(frame_num)
-        # tracks_end = time.time()
-
-        # end_time = time.time()
-        # target_frame_time = 1.0 / self.video.fps if hasattr(self.video, 'fps') else 0
-        # lag = (end_time - start_time) - target_frame_time if target_frame_time > 0 else 0
-        # lag = max(0, lag)
-        # print(f"Frame {self.frame_num} timing:")
-        # print(f"  Get frame: {(frame_fetch_end - frame_fetch_start)*1000:.2f}ms")
-        # print(f"  Set data: {(set_data_end - set_data_start)*1000:.2f}ms")
-        # print(f"  Camera adjust: {(camera_end - camera_start)*1000:.2f}ms")
-        # print(f"  Update view: {(update_end - update_start)*1000:.2f}ms")
-        # print(f"  Tracks update: {(tracks_end - tracks_start)*1000:.2f}ms")
-        # print(f"  Total time: {(end_time - start_time)*1000:.2f}ms")
-        # print(f"  Target frame time: {target_frame_time*1000:.2f}ms")
-        # print(f"  Lag: {lag*1000:.2f}ms")
+        self.visuals["tracks"].on_frame_change(frame_num, refresh_data)
+        
 
     def show_track_merger(self):
         if not hasattr(self, 'track_merger_dialog') or self.track_merger_dialog is None:
@@ -244,24 +237,38 @@ class VideoCanvas(CanvasBase):
     def on_tracks_merged(self):
         self.on_frame_change(self.frame_num)
         self.mutated(True)
+    
 
     def on_mouse_press(self, event):
+        self.dragging = True
+
         img = self.render_picking(event)
         for v in self.visuals.values():
             if hasattr(v, "on_mouse_press"):
                 v.on_mouse_press(event, img)
 
     def on_mouse_release(self, event):
+        self.dragging = False
+
         img = self.render_picking(event)
         for v in self.visuals.values():
             if hasattr(v, "on_mouse_release"):
                 v.on_mouse_release(event, img)
-
+    
     def on_mouse_move(self, event):
-        img = self.render_picking(event)
+        '''
+        Renders
+        '''
+        if self.dragging:
+            img = self.render_picking(event)
+        else:
+            img = self.render_pick_region(event)
+
+        img = self.render_pick_region(event)
         for v in self.visuals.values():
             if hasattr(v, "on_mouse_move"):
                 v.on_mouse_move(event, img)
+        return
 
     def on_key_press(self, event):
         # Forward the Qt event to the parent

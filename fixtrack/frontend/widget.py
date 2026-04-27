@@ -28,7 +28,6 @@ class VideoWidget(QtWidgets.QWidget):
         self,
         parent,
         fname_video=None,
-        fname_video2=None,
         fname_track=None,
         range_slider=True,
         lag=None,
@@ -55,17 +54,6 @@ class VideoWidget(QtWidgets.QWidget):
             self, fname_video=fname_video, fname_track=fname_track, bgcolor=bgcolor
         )
 
-        if fname_video2:
-            self.canvas2 = VideoCanvas(
-                self, fname_video=fname_video2, fname_track=fname_track, bgcolor=bgcolor
-            )
-
-            self.canvas2.native.setSizePolicy(
-                QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Expanding
-            )
-            self.canvas2.create_native()
-            self.canvas2.native.setParent(self)
-
         self.canvas.native.setSizePolicy(
             QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Expanding
         )
@@ -89,32 +77,14 @@ class VideoWidget(QtWidgets.QWidget):
         hl2 = QtWidgets.QHBoxLayout()
         hl2.addWidget(self.canvas.native)
 
-        if fname_video2:
-            hl2.addWidget(self.canvas2.native)
 
         vl2.addLayout(hl2)
         self.player_controls = PlayerHeadWidget(
             self, self.canvas.video, range_slider=range_slider
         )
 
-        if fname_video2:
-            self.player_controls2 = PlayerHeadWidget(
-                self, self.canvas2.video, range_slider=range_slider
-            )
-
-            self.dual_track_controls = PlayerHeadWidget(
-                self,
-                self.canvas.video,
-                range_slider=False,
-                dual_video_reader=self.canvas2.video,
-            )
-
-        if fname_video2:
-            vl2.addWidget(self.dual_track_controls)
-            vl2.addWidget(self.player_controls)
-            vl2.addWidget(self.player_controls2)
-        else:
-            vl2.addWidget(self.player_controls)
+       
+        vl2.addWidget(self.player_controls)
 
         hl1 = QtWidgets.QHBoxLayout()
 
@@ -127,19 +97,6 @@ class VideoWidget(QtWidgets.QWidget):
 
         self.player_controls.sig_frame_change.connect(self.canvas.on_frame_change)
         self.player_controls.sig_frame_change.emit(0, True)
-
-        if fname_video2:
-            self.player_controls2.sig_frame_change.connect(self.canvas2.on_frame_change)
-            self.player_controls2.sig_frame_change.emit(0)
-            self.dual_track_controls.sig_frame_change.connect(self.canvas.on_frame_change)
-            self.dual_track_controls.sig_frame_change.connect(self.canvas2.on_frame_change)
-            self.dual_track_controls.sig_frame_change.emit(0)
-
-            self.dual_track_controls.play_button.clicked.connect(self.sync_play_state)
-            self.dual_track_controls.prevButton.clicked.connect(self.sync_prev_state)
-            self.dual_track_controls.forwardButton.clicked.connect(self.sync_forward_state)
-            self.dual_track_controls.backButton.clicked.connect(self.sync_back_state)
-            self.dual_track_controls.nextButton.clicked.connect(self.sync_next_state)
 
     def setup_track_edit_bar(self, select_last=False):
         """

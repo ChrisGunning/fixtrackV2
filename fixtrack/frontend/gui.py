@@ -14,7 +14,7 @@ class FixtrackWindow(QtWidgets.QMainWindow):
     ''' 
     title = "Track Fixer"
 
-    def __init__(self, fname_video, fname_video2, fname_track, range_slider=True):
+    def __init__(self, fname_video, fname_track, range_slider=True):
         QtWidgets.QMainWindow.__init__(self)
         self.setAttribute(QtCore.Qt.WA_DeleteOnClose)
         self.setWindowTitle(self.title)
@@ -28,7 +28,6 @@ class FixtrackWindow(QtWidgets.QMainWindow):
         self.main_widget = VideoWidget(
             self,
             fname_video=fname_video,
-            fname_video2=fname_video2,
             fname_track=fname_track,
             range_slider=range_slider,
             lag=lag,

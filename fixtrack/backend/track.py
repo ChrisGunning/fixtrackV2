@@ -29,7 +29,7 @@ class Track(object):
     default_vec = normalize_vecs(default_vec)
     default_bbox = [0.0, 0.0]
 
-    def __init__(self, pos, vec=None, bbox=None, det=None, visible=True, undo_len=10):
+    def __init__(self, pos, vec=None, bbox=None, det=None, visible=False, undo_len=10):
         '''
         Initialies a Track object storing position and heading vector data
 

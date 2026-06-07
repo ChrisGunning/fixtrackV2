@@ -180,7 +180,7 @@ class TopLevelControls(QWidget):
         hl5 = QHBoxLayout()
 
         vl = QVBoxLayout()
-        self.vis_toggle_state = True
+        self.vis_toggle_state = False
         self.bbox_vis_toggle_state = True
         self._fname_save = None
 
@@ -473,8 +473,8 @@ class TopLevelControls(QWidget):
                 track_widget.toggle_vis_btn(self.vis_toggle_state)
                 vis.append(idx)
         self.vis_toggle_state = not self.vis_toggle_state
-        self.bbox_vis_toggle_state = self.vis_toggle_state
-        self._parent.canvas.visuals["tracks"].set_all_track_vis(vis, self.vis_toggle_state)
+        # self.bbox_vis_toggle_state = self.vis_toggle_state
+        self._parent.canvas.visuals["tracks"].set_all_track_visibilities(vis, self.vis_toggle_state)
 
 
     def cb_toggle_box_vis(self, clicked):
@@ -486,8 +486,9 @@ class TopLevelControls(QWidget):
 
         vis = []
         for idx, track_widget in self._parent.track_edit_bar.track_widgets.items():
-            if self._parent.canvas.visuals["tracks"].current_boxes[idx].visible == self.bbox_vis_toggle_state:
-                vis.append(idx)
+            if idx in self._parent.canvas.visuals["tracks"].visible_tracks:
+                if self._parent.canvas.visuals["tracks"].current_boxes[idx].visible == self.bbox_vis_toggle_state:
+                    vis.append(idx)
         self.bbox_vis_toggle_state = not self.bbox_vis_toggle_state
         self._parent.canvas.visuals["tracks"].set_all_bbox_vis(vis, self.bbox_vis_toggle_state)
 
@@ -703,10 +704,10 @@ class TrackEditItem(QGroupBox):
         self.btn_visible = QPushButton(self)
         self.btn_visible.setToolTip("Toggle track visibility")
         self.btn_visible.setCheckable(True)
-        self.btn_visible.setChecked(False)
+        self.btn_visible.setChecked(True)
         self.icon_eye = QtGui.QIcon(QtGui.QPixmap(self.fname_eye))
         self.icon_eye_off = QtGui.QIcon(QtGui.QPixmap(self.fname_eye_off))
-        self.btn_visible.setIcon(self.icon_eye)
+        self.btn_visible.setIcon(self.icon_eye_off)
         self.btn_visible.clicked.connect(self.cb_btn_visible)
         self.btn_visible.setFocusPolicy(QtCore.Qt.NoFocus)
         layout.addWidget(self.btn_visible, r, c, 1, 1, QtCore.Qt.AlignHCenter)

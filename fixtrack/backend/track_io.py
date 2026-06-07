@@ -139,6 +139,12 @@ class TrackIO(object):
                 vec = utils.normalize_vecs(vec)
                 det = d[track_idx]
                 tracks.append(tk.Track(pos=pos, vec=vec, bbox=bbox, det=det))
+
+        # PERFORMANCE: Explicitly delete large arrays after loading to free memory
+        del x, y, xh, yh, d
+        if contains_bboxes:
+            del w, h
+            
         return tk.TrackCollection(tracks)
 
     @staticmethod
